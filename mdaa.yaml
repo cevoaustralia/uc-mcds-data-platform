@@ -1,0 +1,44 @@
+# MDAA Main Configuration
+# Modern Data Architecture Accelerator
+# Version: TBD (1.8.1 or 1.9.0)
+
+# Organization name (globally unique, used in S3 bucket names)
+organization: uc-mcds-dev
+
+# AWS Context
+context:
+  # Environment: dev (Cevo AWS) or prod (University AWS)
+  environment: dev
+  
+  # VPC Configuration (required for DMS, Redshift if used)
+  vpc_id: ${VPC_ID}
+  subnet_id_1: ${SUBNET_ID_1}
+  subnet_id_2: ${SUBNET_ID_2}
+  subnet_id_3: ${SUBNET_ID_3}
+  vpc_cidr: ${VPC_CIDR}
+  
+  # Notifications
+  notification_email: sumana.pandi@cevo.com.au
+  
+  # Backup region (for cross-region replication)
+  backup_region: ap-southeast-1
+  
+  # Permissions boundary (optional)
+  # permissions_boundary_name: uc-mcds-boundary
+
+# Modules to deploy
+modules:
+  - governance/roles
+  - governance/lakeformation-settings
+  - data/datalake
+  - data/glue-catalog
+  - data/athena-workgroup
+  - data/audit-trail
+  - dataops/project
+  - dataops/dms
+  - dataops/jobs
+  - dataops/crawler
+  - dataops/data-quality
+
+# Configuration files location
+# Each module has its own YAML config in respective folder

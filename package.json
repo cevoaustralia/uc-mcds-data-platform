@@ -1,0 +1,27 @@
+{
+  "name": "uc-mcds-data-platform",
+  "version": "0.1.0",
+  "description": "University of Canberra MCDS Data Platform - MDAA-based implementation",
+  "private": true,
+  "scripts": {
+    "deploy": "npx @aws-mdaa/cli deploy",
+    "synth": "npx @aws-mdaa/cli synth",
+    "ls": "npx @aws-mdaa/cli ls",
+    "test": "cd tests && pytest"
+  },
+  "keywords": [
+    "mdaa",
+    "mcds",
+    "data-lake",
+    "aws"
+  ],
+  "author": "Cevo Data Engineering Team",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@aws-mdaa/cli": "latest",
+    "aws-cdk": "^2.110.0"
+  }
+}
