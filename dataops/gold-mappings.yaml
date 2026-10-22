@@ -1,0 +1,40 @@
+# Gold Layer Mappings
+# Aggregations for reporting and analytics
+
+version: "1.0"
+
+aggregations:
+  - name: student_load_by_unit
+    source: silver.unit_enrolments
+    joins:
+      - table: silver.curriculum_units
+        on: unitCode
+      - table: silver.student_management
+        on: studentID
+    group_by:
+      - unit_code
+      - unit_name
+      - semester
+    metrics:
+      - name: student_count
+        function: COUNT(DISTINCT studentID)
+      - name: eftsl
+        function: SUM(creditPoints) / 24.0
+    target: gold.student_load_by_unit
+    
+  - name: student_load_by_facility
+    source: silver.unit_enrolments
+    joins:
+      - table: silver.student_management
+        on: studentID
+      - table: silver.facilities
+        on: facilityCode
+    group_by:
+      - facility_name
+      - semester
+    metrics:
+      - name: student_count
+        function: COUNT(DISTINCT studentID)
+      - name: eftsl
+        function: SUM(creditPoints) / 24.0
+    target: gold.student_load_by_facility
