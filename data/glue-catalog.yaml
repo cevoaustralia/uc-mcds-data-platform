@@ -1,0 +1,17 @@
+# MDAA Glue Catalog Configuration
+# Account-level Glue Data Catalog encryption settings
+
+catalog_encryption:
+  enabled: true
+  encryption_at_rest:
+    catalog_encryption_mode: SSE-KMS
+    sse_aws_kms_key_id: "alias/aws/glue"
+  connection_password_encryption:
+    encryption_mode: SSE-KMS
+    kms_key_id: "alias/aws/glue"
+
+tags:
+  project: uc-mcds-data-platform
+  environment: "${context.environment}"
+  managed-by: mdaa
+  sow-deliverable: D1

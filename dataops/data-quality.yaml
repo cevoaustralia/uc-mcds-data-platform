@@ -1,0 +1,26 @@
+# MDAA Glue Data Quality Configuration
+# Glue Data Quality rulesets (optional - DQ checks implemented in Python)
+
+# Note: For this EBA implementation, data quality checks are implemented
+# in the data-quality-checks.py Glue job for flexibility
+
+rulesets: []
+
+# Example Data Quality ruleset (disabled):
+# rulesets:
+#   - name: mcds-bronze-person-dq
+#     description: "Data quality rules for Bronze PERSON table"
+#     target:
+#       database: mcds_bronze
+#       table: person
+#     rules:
+#       - "RowCount > 0"
+#       - "IsComplete \"PERSON_ID\""
+#       - "IsUnique \"PERSON_ID\""
+#       - "IsComplete \"SURNAME\""
+#       - "IsComplete \"GIVEN_NAMES\""
+#     tags:
+#       project: uc-mcds-data-platform
+#       environment: "${context.environment}"
+#       layer: bronze
+#       managed-by: mdaa

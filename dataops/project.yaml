@@ -1,0 +1,55 @@
+# MDAA Glue Databases Configuration
+# Glue databases for Bronze/Silver/Gold layers
+
+databases:
+  # Bronze database - Raw Callista data
+  - name: mcds_bronze
+    description: "Bronze layer - Raw Callista student data (Parquet format)"
+    location_uri: "s3://${organization}-bronze/callista/"
+    parameters:
+      classification: "parquet"
+      source_system: "callista"
+      data_format: "parquet"
+      layer: "bronze"
+    tags:
+      project: uc-mcds-data-platform
+      environment: "${context.environment}"
+      layer: bronze
+      source-system: callista
+      managed-by: mdaa
+      sow-deliverable: D1
+      cost-center: university-analytics
+
+  # Silver database - MCDS-compliant data
+  - name: mcds_silver
+    description: "Silver layer - MCDS v2.1.1 transformed student data"
+    location_uri: "s3://${organization}-silver/mcds/"
+    parameters:
+      classification: "parquet"
+      standard: "mcds-v2.1.1"
+      data_format: "parquet"
+      layer: "silver"
+    tags:
+      project: uc-mcds-data-platform
+      environment: "${context.environment}"
+      layer: silver
+      mcds-version: "v2.1.1"
+      managed-by: mdaa
+      sow-deliverable: D2
+      cost-center: university-analytics
+
+  # Gold database - Analytics and reports
+  - name: mcds_gold
+    description: "Gold layer - Analytics aggregations and reporting datasets"
+    location_uri: "s3://${organization}-gold/analytics/"
+    parameters:
+      classification: "parquet"
+      data_format: "parquet"
+      layer: "gold"
+    tags:
+      project: uc-mcds-data-platform
+      environment: "${context.environment}"
+      layer: gold
+      managed-by: mdaa
+      sow-deliverable: D5
+      cost-center: university-analytics

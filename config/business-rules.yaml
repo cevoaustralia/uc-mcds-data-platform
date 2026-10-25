@@ -1,0 +1,62 @@
+# UC MCDS Data Platform - Business Rules Configuration
+# These are PLACEHOLDER values until University of Canberra confirms
+# All rules marked as "confirmed: false" are subject to change
+
+student_number_source:
+  # PLACEHOLDER: Real source unknown
+  placeholder_formula: "STU{PERSON_ID}"
+  confirmed: false
+  notes: "Real source: STATE_GOVT_STUDENT_NUMBER in VET tables (TBD from UC)"
+  real_source_tbd: "GOVT_STUDENT_LOAD or related VET tables - awaiting UC confirmation"
+
+student_load_metric:
+  # PLACEHOLDER: Use COUNT, real metric TBD
+  primary_metric: "COUNT"  # Alternative: SUM(EFTSU)
+  confirmed: false
+  notes: "SOW says 'how many students' - confirming interpretation with UC"
+  alternatives:
+    - "COUNT(DISTINCT PERSON_ID) - headcount"
+    - "SUM(EFTSU) - full-time equivalent student units"
+
+facility_field:
+  # PLACEHOLDER: Use organizational unit, real field TBD
+  source_column: "TR_ORG_UNIT_CD"  # Alternative: GOVT_LOCATION_CD
+  confirmed: false
+  notes: "Facility = organizational unit or physical location? Awaiting UC clarification"
+  alternatives:
+    - "TR_ORG_UNIT_CD - organizational unit (teaching responsibility)"
+    - "GOVT_LOCATION_CD - physical location (campus)"
+
+active_status_codes:
+  # PLACEHOLDER: Mock values, real codes TBD
+  unit_completion_status:
+    - 1  # Mock: ENROLLED
+    - 2  # Mock: CONTINUING
+  confirmed: false
+  notes: "Real UNIT_COMPLETION_STATUS values for 'active' status TBD from UC data dictionary"
+  real_source_tbd: "UNIT_COMPLETION_STATUS lookup table - awaiting UC schema details"
+
+current_semester:
+  # PLACEHOLDER: Mock value, real semester code TBD
+  semester_code: "2024-S1"
+  confirmed: false
+  notes: "Current reporting semester for GOVT_SEMESTER field - awaiting UC confirmation"
+  format: "YYYY-SN where N is semester number"
+
+org_unit_description_column:
+  # PLACEHOLDER: Use placeholder until real column confirmed
+  column_name: "ORG_UNIT_START_DT"  # Placeholder field, not a real description
+  confirmed: false
+  notes: "Real ORG_UNIT description column name TBD from UC schema"
+  real_source_tbd: "ORG_UNIT table structure - awaiting UC Callista data dictionary"
+
+# Data Quality Thresholds
+dq_thresholds:
+  row_count_tolerance: 0.0  # Bronze must match Landing exactly
+  silver_retention_min: 0.95  # Silver can lose up to 5% due to filtering
+  gold_aggregation_tolerance: 0.01  # Gold sums must match Silver within 1%
+  required_fields:
+    - studentId
+    - unitCode
+    - facility
+  null_tolerance: 0.0  # 0% nulls allowed in required fields

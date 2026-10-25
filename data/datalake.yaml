@@ -1,0 +1,143 @@
+# MDAA Data Lake Configuration
+# S3 buckets for Bronze/Silver/Gold architecture with KMS encryption
+
+buckets:
+  # Landing bucket (for CSV uploads before Bronze processing)
+  - name: "${organization}-landing"
+    description: "Landing zone for incoming Callista CSV files"
+    encryption:
+      type: kms
+      key_alias: "alias/uc-mcds-landing"
+    versioning: true
+    lifecycle_rules:
+      - id: archive-old-files
+        enabled: true
+        transitions:
+          - days: 90
+            storage_class: GLACIER
+        expiration_days: 365
+    tags:
+      project: uc-mcds-data-platform
+      environment: "${context.environment}"
+      layer: landing
+      managed-by: mdaa
+      sow-deliverable: D1
+      cost-center: university-analytics
+
+  # Bronze bucket (raw Callista data in Parquet)
+  - name: "${organization}-bronze"
+    description: "Bronze layer - Raw Callista data (Parquet format)"
+    encryption:
+      type: kms
+      key_alias: "alias/uc-mcds-bronze"
+    versioning: true
+    lifecycle_rules:
+      - id: archive-historical-data
+        enabled: true
+        transitions:
+          - days: 180
+            storage_class: GLACIER
+    tags:
+      project: uc-mcds-data-platform
+      environment: "${context.environment}"
+      layer: bronze
+      managed-by: mdaa
+      sow-deliverable: D1
+      cost-center: university-analytics
+
+  # Silver bucket (MCDS-compliant JSON + Parquet)
+  - name: "${organization}-silver"
+    description: "Silver layer - MCDS v2.1.1 transformed data"
+    encryption:
+      type: kms
+      key_alias: "alias/uc-mcds-silver"
+    versioning: true
+    lifecycle_rules:
+      - id: archive-historical-mcds
+        enabled: true
+        transitions:
+          - days: 365
+            storage_class: GLACIER
+    tags:
+      project: uc-mcds-data-platform
+      environment: "${context.environment}"
+      layer: silver
+      managed-by: mdaa
+      sow-deliverable: D2
+      cost-center: university-analytics
+
+  # Gold bucket (analytics aggregations)
+  - name: "${organization}-gold"
+    description: "Gold layer - Analytics and reporting datasets"
+    encryption:
+      type: kms
+      key_alias: "alias/uc-mcds-gold"
+    versioning: false
+    lifecycle_rules:
+      - id: delete-old-reports
+        enabled: true
+        expiration_days: 90  # Reports regenerated regularly
+    tags:
+      project: uc-mcds-data-platform
+      environment: "${context.environment}"
+      layer: gold
+      managed-by: mdaa
+      sow-deliverable: D5
+      cost-center: university-analytics
+
+  # Athena results bucket
+  - name: "${organization}-athena-results"
+    description: "Athena query results storage"
+    encryption:
+      type: kms
+      key_alias: "alias/uc-mcds-gold"  # Reuse Gold key
+    versioning: false
+    lifecycle_rules:
+      - id: cleanup-query-results
+        enabled: true
+        expiration_days: 7
+    tags:
+      project: uc-mcds-data-platform
+      environment: "${context.environment}"
+      layer: gold
+      managed-by: mdaa
+      sow-deliverable: D1
+      cost-center: university-analytics
+
+# KMS Keys
+kms_keys:
+  - alias: "alias/uc-mcds-landing"
+    description: "Encryption key for Landing layer"
+    enable_key_rotation: true
+    tags:
+      project: uc-mcds-data-platform
+      environment: "${context.environment}"
+      layer: landing
+      managed-by: mdaa
+
+  - alias: "alias/uc-mcds-bronze"
+    description: "Encryption key for Bronze layer"
+    enable_key_rotation: true
+    tags:
+      project: uc-mcds-data-platform
+      environment: "${context.environment}"
+      layer: bronze
+      managed-by: mdaa
+
+  - alias: "alias/uc-mcds-silver"
+    description: "Encryption key for Silver layer"
+    enable_key_rotation: true
+    tags:
+      project: uc-mcds-data-platform
+      environment: "${context.environment}"
+      layer: silver
+      managed-by: mdaa
+
+  - alias: "alias/uc-mcds-gold"
+    description: "Encryption key for Gold layer and Athena"
+    enable_key_rotation: true
+    tags:
+      project: uc-mcds-data-platform
+      environment: "${context.environment}"
+      layer: gold
+      managed-by: mdaa

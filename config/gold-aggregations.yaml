@@ -1,0 +1,142 @@
+# Gold Layer Aggregation Definitions
+# SOW D5 reporting requirements
+
+# NOTE: Filters reference business-rules.yaml for active status codes and current semester
+
+reports:
+  # Report 1: Student load by unit (SOW D5.1)
+  - name: student_load_by_unit
+    description: "Student enrolment counts and EFTSU by unit"
+    source_table: mcds_silver.student_unit_load
+    output_path: "s3://${organization}-gold/analytics/student_load_by_unit/"
+    
+    # Filters from business-rules.yaml
+    filters:
+      # PLACEHOLDER - active status codes from business-rules.yaml
+      - "status IN (1, 2)"  # Mock: 1=ENROLLED, 2=CONTINUING (real codes TBD)
+      # PLACEHOLDER - current semester from business-rules.yaml
+      - "semester = '2024-S1'"  # Mock semester (real current semester TBD)
+    
+    # GROUP BY columns
+    group_by:
+      - unitCode
+      - semester
+    
+    # Aggregations
+    aggregations:
+      # PLACEHOLDER - student load metric from business-rules.yaml
+      student_count:
+        metric: "COUNT(DISTINCT studentId)"
+        description: "Headcount of students (PLACEHOLDER - confirm with UC: headcount vs EFTSU sum)"
+        data_type: "bigint"
+      
+      total_eftsu:
+        metric: "SUM(eftsu)"
+        description: "Total EFTSU for unit"
+        data_type: "decimal(10,3)"
+      
+      avg_eftsu_per_student:
+        metric: "AVG(eftsu)"
+        description: "Average EFTSU per student"
+        data_type: "decimal(5,3)"
+    
+    # Join with dimension tables for enrichment
+    joins:
+      - table: mcds_silver.unit_of_learning
+        condition: "student_unit_load.unitCode = unit_of_learning.unitCode"
+        type: "left"
+        select:
+          - "unit_of_learning.unitName"
+          - "unit_of_learning.creditPoints"
+    
+    # Metadata columns
+    metadata:
+      - name: report_generated_at
+        value: "current_timestamp()"
+    
+    # Sort order for output
+    order_by:
+      - column: student_count
+        direction: DESC
+    
+    tags:
+      sow-deliverable: D5
+      report-id: D5.1
+      report-type: unit-enrolment
+
+  # Report 2: Student load by facility (SOW D5.2)
+  - name: student_load_by_facility
+    description: "Student enrolment counts and EFTSU by facility"
+    source_table: mcds_silver.student_unit_load
+    output_path: "s3://${organization}-gold/analytics/student_load_by_facility/"
+    
+    # Filters from business-rules.yaml
+    filters:
+      # PLACEHOLDER - active status codes
+      - "status IN (1, 2)"  # Mock active statuses
+      # PLACEHOLDER - current semester
+      - "semester = '2024-S1'"  # Mock semester
+    
+    # GROUP BY columns
+    group_by:
+      - locationCode
+      - semester
+    
+    # Aggregations
+    aggregations:
+      # PLACEHOLDER - student load metric
+      student_count:
+        metric: "COUNT(DISTINCT studentId)"
+        description: "Headcount of students (PLACEHOLDER - confirm metric with UC)"
+        data_type: "bigint"
+      
+      total_eftsu:
+        metric: "SUM(eftsu)"
+        description: "Total EFTSU for facility"
+        data_type: "decimal(10,3)"
+      
+      unit_count:
+        metric: "COUNT(DISTINCT unitCode)"
+        description: "Number of distinct units taught at facility"
+        data_type: "bigint"
+    
+    # Join with dimension tables
+    joins:
+      - table: mcds_silver.location
+        condition: "student_unit_load.locationCode = location.locationCode"
+        type: "left"
+        select:
+          - "location.locationName"
+          - "location.locationType"
+    
+    # Metadata columns
+    metadata:
+      - name: report_generated_at
+        value: "current_timestamp()"
+    
+    # Sort order
+    order_by:
+      - column: student_count
+        direction: DESC
+    
+    tags:
+      sow-deliverable: D5
+      report-id: D5.2
+      report-type: facility-enrolment
+
+# Configuration notes
+notes:
+  placeholder_filters:
+    - "Active status codes (1, 2) are mock values - real UNIT_COMPLETION_STATUS codes TBD from UC"
+    - "Current semester ('2024-S1') is mock value - real semester code TBD from UC"
+    - "Student load metric (COUNT DISTINCT) is placeholder - confirm headcount vs EFTSU sum with UC"
+  
+  configuration_driven:
+    - "When UC confirms real values, update config/business-rules.yaml"
+    - "Filters will automatically use updated values from business-rules.yaml"
+    - "No code changes needed in silver-to-gold.py ETL job"
+  
+  extensibility:
+    - "Additional reports can be added by extending this YAML configuration"
+    - "Each report definition drives Gold ETL job behavior"
+    - "Supports custom filters, joins, and aggregations per report"

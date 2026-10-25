@@ -1,0 +1,76 @@
+# MDAA DMS Configuration
+# AWS DMS for real-time Callista Oracle replication (future - not in EBA scope)
+
+# Note: For EBA phase, using mock CSV data and manual uploads
+# DMS configuration will be added during University deployment phase
+
+# DMS configuration placeholder:
+# replication_instances: []
+# endpoints: []
+# tasks: []
+
+# Example DMS configuration (disabled - for future production use):
+# replication_instances:
+#   - name: callista-replication-instance
+#     instance_class: dms.t3.medium
+#     engine_version: "3.4.7"
+#     allocated_storage: 100  # GB
+#     multi_az: false  # true for production
+#     publicly_accessible: false
+#     vpc_subnet_group: "${DMS SubnetGroup}"
+#     tags:
+#       project: uc-mcds-data-platform
+#       environment: "${context.environment}"
+#       purpose: callista-cdc
+#       managed-by: mdaa
+
+# endpoints:
+#   - name: callista-source-endpoint
+#     endpoint_type: source
+#     engine_name: oracle
+#     server_name: "callista.university.edu.au"
+#     port: 1521
+#     database_name: "CALLISTA_PROD"
+#     username: "${CALLISTA_USER}"
+#     password: "${CALLISTA_PASSWORD}"  # From Secrets Manager
+#     ssl_mode: require
+#     tags:
+#       project: uc-mcds-data-platform
+#       environment: prod
+#       source-system: callista
+
+#   - name: mcds-target-endpoint
+#     endpoint_type: target
+#     engine_name: s3
+#     s3_settings:
+#       bucket_name: "${organization}-landing"
+#       bucket_folder: "callista/"
+#       compression_type: gzip
+#       data_format: parquet
+#       timestamp_column_name: "dms_timestamp"
+#     service_access_role_arn: "${DMSRole.Arn}"
+#     tags:
+#       project: uc-mcds-data-platform
+#       environment: "${context.environment}"
+#       layer: landing
+
+# tasks:
+#   - name: callista-to-landing-cdc
+#     replication_instance: callista-replication-instance
+#     source_endpoint: callista-source-endpoint
+#     target_endpoint: mcds-target-endpoint
+#     migration_type: full-load-and-cdc
+#     table_mappings:
+#       rules:
+#         - rule_type: selection
+#           rule_id: "1"
+#           rule_name: "include-student-tables"
+#           object_locator:
+#             schema_name: "SISPROD"
+#             table_name: "%"
+#           rule_action: include
+#     tags:
+#       project: uc-mcds-data-platform
+#       environment: prod
+#       source-system: callista
+#       managed-by: mdaa

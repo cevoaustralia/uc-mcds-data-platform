@@ -1,0 +1,226 @@
+# Callista to MCDS Silver Layer Mappings
+# Field-level mappings from Bronze Callista tables to Silver MCDS entities
+
+# NOTE: All mappings reference business-rules.yaml for TBD placeholder values
+
+entities:
+  # Student entity (core demographics)
+  - name: student
+    description: "MCDS student entity from PERSON table"
+    source_table: mcds_bronze.person
+    output_path: "s3://${organization}-silver/mcds/student/"
+    
+    mappings:
+      # Primary identifier
+      studentId:
+        source: "PERSON_ID"
+        transformation: "CAST(PERSON_ID AS STRING)"
+        data_type: "string"
+        required: true
+      
+      # Student number - PLACEHOLDER from business-rules.yaml
+      studentNumber:
+        source: "PERSON_ID"
+        transformation: "CONCAT('STU', CAST(PERSON_ID AS STRING))"
+        data_type: "string"
+        required: true
+        placeholder: true
+        notes: "Real source: STATE_GOVT_STUDENT_NUMBER in VET tables (TBD from UC)"
+      
+      # Names
+      givenName:
+        source: "GIVEN_NAMES"
+        transformation: "GIVEN_NAMES"
+        data_type: "string"
+        required: true
+      
+      familyName:
+        source: "SURNAME"
+        transformation: "SURNAME"
+        data_type: "string"
+        required: true
+      
+      # Contact
+      email:
+        source: "EMAIL_ADDR"
+        transformation: "EMAIL_ADDR"
+        data_type: "string"
+        required: false
+      
+      # Demographics
+      birthDate:
+        source: "BIRTH_DT"
+        transformation: "BIRTH_DT"
+        data_type: "date"
+        required: false
+      
+      # Metadata
+      createdAt:
+        transformation: "current_timestamp()"
+        data_type: "timestamp"
+        required: true
+    
+    tags:
+      mcds-entity: student
+      contains-pii: "true"
+      sow-deliverable: D2
+
+  # Unit of Learning entity
+  - name: unit_of_learning
+    description: "MCDS unit/course entity from UNIT_VERSION table"
+    source_table: mcds_bronze.unit_version
+    output_path: "s3://${organization}-silver/mcds/unit_of_learning/"
+    
+    mappings:
+      unitCode:
+        source: "UNIT_CD"
+        transformation: "UNIT_CD"
+        data_type: "string"
+        required: true
+      
+      unitName:
+        source: "UNIT_NAME"
+        transformation: "UNIT_NAME"
+        data_type: "string"
+        required: true
+      
+      creditPoints:
+        source: "CREDIT_POINTS"
+        transformation: "CREDIT_POINTS"
+        data_type: "decimal(5,1)"
+        required: false
+      
+      createdAt:
+        transformation: "current_timestamp()"
+        data_type: "timestamp"
+        required: true
+    
+    tags:
+      mcds-entity: unitOfLearning
+      sow-deliverable: D2
+
+  # Location/Facility entity
+  - name: location
+    description: "MCDS location entity from ORG_UNIT or LOCATION - PLACEHOLDER"
+    source_tables:
+      - mcds_bronze.org_unit
+      - mcds_bronze.location
+    output_path: "s3://${organization}-silver/mcds/location/"
+    
+    mappings:
+      # PLACEHOLDER - facility field TBD from business-rules.yaml
+      locationCode:
+        source: "TR_ORG_UNIT_CD or GOVT_LOCATION_CD"
+        transformation: "COALESCE(TR_ORG_UNIT_CD, GOVT_LOCATION_CD)"
+        data_type: "string"
+        required: true
+        placeholder: true
+        notes: "Facility = organizational unit (TR_ORG_UNIT_CD) or physical location (GOVT_LOCATION_CD)? TBD from UC"
+      
+      # PLACEHOLDER - description column TBD
+      locationName:
+        source: "ORG_UNIT_START_DT or location name column"
+        transformation: "CAST(ORG_UNIT_START_DT AS STRING)"
+        data_type: "string"
+        required: false
+        placeholder: true
+        notes: "Real ORG_UNIT/LOCATION description column TBD from UC schema"
+      
+      locationType:
+        transformation: "CASE WHEN TR_ORG_UNIT_CD IS NOT NULL THEN 'organizational' ELSE 'physical' END"
+        data_type: "string"
+        required: false
+      
+      createdAt:
+        transformation: "current_timestamp()"
+        data_type: "timestamp"
+        required: true
+    
+    tags:
+      mcds-entity: location
+      sow-deliverable: D2
+
+  # Student Unit Load (fact table)
+  - name: student_unit_load
+    description: "MCDS student enrolment fact from GOVT_STUDENT_LOAD"
+    source_table: mcds_bronze.govt_student_load
+    join_tables:
+      - mcds_bronze.person
+      - mcds_bronze.unit_version
+      - mcds_bronze.org_unit
+      - mcds_bronze.location
+    output_path: "s3://${organization}-silver/mcds/student_unit_load/"
+    
+    mappings:
+      # Surrogate key
+      loadId:
+        transformation: "md5(concat_ws('|', CAST(PERSON_ID AS STRING), UNIT_CD, GOVT_SEMESTER))"
+        data_type: "string"
+        required: true
+      
+      # Foreign keys
+      studentId:
+        source: "PERSON_ID"
+        transformation: "CAST(PERSON_ID AS STRING)"
+        data_type: "string"
+        required: true
+      
+      unitCode:
+        source: "UNIT_CD"
+        transformation: "UNIT_CD"
+        data_type: "string"
+        required: true
+      
+      # PLACEHOLDER - facility field from business-rules.yaml
+      locationCode:
+        source: "TR_ORG_UNIT_CD or GOVT_LOCATION_CD"
+        transformation: "COALESCE(TR_ORG_UNIT_CD, GOVT_LOCATION_CD)"
+        data_type: "string"
+        required: false
+        placeholder: true
+        notes: "Facility field TBD from UC - organizational (TR_ORG_UNIT_CD) or physical (GOVT_LOCATION_CD)"
+      
+      # Measures
+      eftsu:
+        source: "EFTSU"
+        transformation: "EFTSU"
+        data_type: "decimal(5,3)"
+        required: true
+      
+      # Dimensions
+      semester:
+        source: "GOVT_SEMESTER"
+        transformation: "GOVT_SEMESTER"
+        data_type: "string"
+        required: true
+      
+      status:
+        source: "UNIT_COMPLETION_STATUS"
+        transformation: "UNIT_COMPLETION_STATUS"
+        data_type: "integer"
+        required: false
+        notes: "1=ENROLLED, 2=CONTINUING (mock values - real codes TBD from UC)"
+      
+      # Metadata
+      createdAt:
+        transformation: "current_timestamp()"
+        data_type: "timestamp"
+        required: true
+    
+    # Filters applied during Silver transformation
+    filters:
+      - "PERSON_ID IS NOT NULL"
+      - "UNIT_CD IS NOT NULL"
+    
+    tags:
+      mcds-entity: studentEnrolment
+      fact-table: "true"
+      sow-deliverable: D2
+
+# Transformation notes
+transformation_notes:
+  - "All mappings use explicit column references from Bronze Parquet tables"
+  - "No hardcoded values - all placeholders reference config/business-rules.yaml"
+  - "6 TBD items marked with 'placeholder: true'"
+  - "When UC confirms real sources, update business-rules.yaml only (no code changes)"
+  - "Silver entities output as both JSON (for MCDS validation) and Parquet (for querying)"

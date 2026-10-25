@@ -1,0 +1,78 @@
+# MDAA Lake Formation Configuration
+# Lake Formation admin mode and data catalog settings
+
+settings:
+  # Enable Lake Formation for fine-grained access control
+  catalog_settings:
+    use_only_iam_access_control: false  # Enable Lake Formation permissions
+  
+  # Data Lake administrators
+  admins:
+    - principal: "arn:aws:iam::${AWS::AccountId}:role/uc-mcds-data-engineer-role"
+    - principal: "arn:aws:iam::${AWS::AccountId}:user/sumana.pandi"  # Replace with actual admin user
+
+# Database permissions
+database_permissions:
+  # Bronze database - Data engineers
+  - principal: "arn:aws:iam::${AWS::AccountId}:role/uc-mcds-data-engineer-role"
+    database: mcds_bronze
+    permissions:
+      - ALL
+      - ALTER
+      - CREATE_TABLE
+      - DROP
+      - DESCRIBE
+  
+  # Silver database - Data engineers
+  - principal: "arn:aws:iam::${AWS::AccountId}:role/uc-mcds-data-engineer-role"
+    database: mcds_silver
+    permissions:
+      - ALL
+      - ALTER
+      - CREATE_TABLE
+      - DROP
+      - DESCRIBE
+  
+  # Gold database - Data engineers (full access)
+  - principal: "arn:aws:iam::${AWS::AccountId}:role/uc-mcds-data-engineer-role"
+    database: mcds_gold
+    permissions:
+      - ALL
+      - ALTER
+      - CREATE_TABLE
+      - DROP
+      - DESCRIBE
+  
+  # Gold database - Analysts (read-only)
+  - principal: "arn:aws:iam::${AWS::AccountId}:role/uc-mcds-analyst-role"
+    database: mcds_gold
+    permissions:
+      - DESCRIBE
+
+# Table permissions
+table_permissions:
+  # Gold tables - Analysts can SELECT
+  - principal: "arn:aws:iam::${AWS::AccountId}:role/uc-mcds-analyst-role"
+    database: mcds_gold
+    table: ALL_TABLES
+    permissions:
+      - SELECT
+      - DESCRIBE
+
+# Data location permissions
+data_location_permissions:
+  - principal: "arn:aws:iam::${AWS::AccountId}:role/uc-mcds-glue-etl-role"
+    data_location: "arn:aws:s3:::${organization}-bronze"
+  
+  - principal: "arn:aws:iam::${AWS::AccountId}:role/uc-mcds-glue-etl-role"
+    data_location: "arn:aws:s3:::${organization}-silver"
+  
+  - principal: "arn:aws:iam::${AWS::AccountId}:role/uc-mcds-glue-etl-role"
+    data_location: "arn:aws:s3:::${organization}-gold"
+
+tags:
+  project: uc-mcds-data-platform
+  environment: "${context.environment}"
+  managed-by: mdaa
+  sow-deliverable: D4
+  cost-center: university-analytics
