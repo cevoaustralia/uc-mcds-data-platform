@@ -1,6 +1,14 @@
 # MCDS Reference Package - Never check in
 MCDS - v2.1.1/
 
+# Analysis documents (local only, not for check-in)
+analysis/
+*.csv
+*-Analysis*.md
+*-Summary*.md
+*UPDATE-SUMMARY*.md
+IMPLEMENTATION-PLAN.md
+
 # Python
 __pycache__/
 *.py[cod]
