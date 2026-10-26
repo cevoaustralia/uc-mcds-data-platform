@@ -1,0 +1,47 @@
+erDiagram
+  student ||--o{ student_unit_load : "studentID"
+  unit_of_learning ||--o{ student_unit_load : "unitOfLearning"
+  location ||--o{ student_unit_load : "availability.location (campus)"
+  organisation ||--o{ student_unit_load : "availability.responsibleOrganisations (teaching)"
+  learning_period ||--o{ student_unit_load : "availability.learningPeriod"
+  student_unit_load {
+    string load_id PK "one GOVT_STUDENT_LOAD row"
+    string unit_enrolment_id "unitOfLearningEnrolmentID"
+    string programme_enrolment_id "PERSON_ID|COURSE_CD (required)"
+    string student_id FK "required"
+    string unit_of_learning_id FK "UNIT_CD/VERSION"
+    string location_id FK "SUA.LOCATION_CD (required)"
+    string teaching_organisation_id FK "TR_ORG_UNIT_CD|START"
+    string learning_period_id FK "CAL_TYPE|SEQ (required)"
+    string reporting_period "YYYY-1 or YYYY-2"
+    decimal eftsu "EFTSL share"
+    int completion_status "E355 -> status"
+  }
+  student {
+    string student_id PK "studentID = STU-PERSON_ID"
+    string person_id "personID"
+    string student_number "studentNumber (required)"
+    string last_name "studentName.lastName (required, masked)"
+    string first_name "studentName.firstName"
+  }
+  unit_of_learning {
+    string unit_of_learning_id PK
+    string unit_code "unitOfLearningCode (required)"
+    int unit_version "version"
+    string unit_name "unitOfLearningName (required)"
+  }
+  location {
+    string location_id PK "LOCATION_CD"
+    string location_name "locationName (required)"
+    string location_type "Campus / Virtual"
+  }
+  organisation {
+    string organisation_id PK "ORG_UNIT_CD|START_DT"
+    string organisation_name "organisationName (required)"
+  }
+  learning_period {
+    string learning_period_id PK
+    string code "ALTERNATE_CODE"
+    date start_date
+    date end_date
+  }

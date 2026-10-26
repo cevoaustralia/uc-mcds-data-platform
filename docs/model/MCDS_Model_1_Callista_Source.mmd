@@ -1,0 +1,60 @@
+erDiagram
+  PERSON ||--o{ GOVT_STUDENT_LOAD : "PERSON_ID"
+  STUDENT_UNIT_ATTEMPT ||--|{ GOVT_STUDENT_LOAD : "PERSON_ID, COURSE_CD, UNIT_CD, VERSION, CAL_TYPE, CI_SEQ"
+  UNIT_VERSION ||--o{ GOVT_STUDENT_LOAD : "UNIT_CD + UV_VERSION_NUMBER"
+  ORG_UNIT ||--o{ GOVT_STUDENT_LOAD : "TR_ORG_UNIT_CD + TR_OU_START_DT"
+  CAL_INSTANCE ||--o{ STUDENT_UNIT_ATTEMPT : "CAL_TYPE + CI_SEQUENCE_NUMBER"
+  LOCATION ||--o{ STUDENT_UNIT_ATTEMPT : "LOCATION_CD"
+  GOVT_STUDENT_LOAD {
+    int SUBMISSION_YR PK
+    int SUBMISSION_NUMBER PK "latest per attempt kept"
+    long PERSON_ID PK,FK
+    string COURSE_CD PK
+    string UNIT_CD PK,FK
+    int UV_VERSION_NUMBER PK,FK
+    string SUA_CAL_TYPE PK,FK
+    int SUA_CI_SEQUENCE_NUMBER PK,FK
+    int GOVT_SEMESTER PK "1 or 2"
+    string TR_ORG_UNIT_CD PK,FK "teaching split"
+    date TR_OU_START_DT PK,FK
+    decimal EFTSU "load share"
+    int UNIT_COMPLETION_STATUS "TCSI E355"
+  }
+  STUDENT_UNIT_ATTEMPT {
+    long PERSON_ID PK
+    string COURSE_CD PK
+    string UNIT_CD PK
+    int VERSION_NUMBER PK
+    string CAL_TYPE PK
+    int CI_SEQUENCE_NUMBER PK
+    string LOCATION_CD FK "campus"
+    long UOO_ID "unit offering"
+  }
+  PERSON {
+    long PERSON_ID PK
+    string SURNAME "masked"
+    string GIVEN_NAMES "masked"
+  }
+  UNIT_VERSION {
+    string UNIT_CD PK
+    int VERSION_NUMBER PK
+    string TITLE
+    string OWNER_ORG_UNIT_CD
+  }
+  ORG_UNIT {
+    string ORG_UNIT_CD PK
+    date START_DT PK
+    string DESCRIPTION
+  }
+  LOCATION {
+    string LOCATION_CD PK
+    string DESCRIPTION
+    string LOCATION_TYPE
+  }
+  CAL_INSTANCE {
+    string CAL_TYPE PK
+    int SEQUENCE_NUMBER PK
+    date START_DT
+    date END_DT
+    string ALTERNATE_CODE
+  }

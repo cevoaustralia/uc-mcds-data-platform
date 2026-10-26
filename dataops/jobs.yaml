@@ -1,153 +1,92 @@
-# MDAA Glue ETL Jobs Configuration
-# Glue job definitions for Bronze→Silver→Gold pipeline
+# @aws-mdaa/dataops-job - Glue ETL jobs (SOW D3 onboarding pattern, D5 reporting)
+# Order: landing-to-bronze -> bronze-to-silver -> silver-to-gold
+# MDAA uploads scriptLocation + additionalScripts (--extra-py-files) + additionalFiles
+# (--extra-files: the config YAMLs, placed in the job working directory).
+# Changing config/*.yaml and redeploying changes behaviour with no code change.
+projectName: project
+
+templates:
+  mcds-glue:
+    executionRoleArn: &glue_role ssm:/{{org}}/shared/generated-role/glue-etl/arn
+    description: UC MCDS Glue ETL job
+    defaultArguments: &common_args
+      --enable-glue-datacatalog: "true"
+      --enable-metrics: "true"
+      --enable-job-insights: "true"
+      --additional-python-modules: "pyyaml==6.0.2"
+    command:
+      name: glueetl
+      pythonVersion: "3"
+      scriptLocation: ../etl/silver/bronze-to-silver.py
+    glueVersion: "4.0"
+    workerType: G.1X
+    maxRetries: 1
+    executionProperty:
+      maxConcurrentRuns: 1
+    continuousLogging:
+      logGroupRetentionDays: 90
+    additionalScripts: &common_scripts
+      - ../etl/common/schemas.py
+      - ../etl/common/pipeline.py
+      - ../etl/common/data_quality.py
+      - ../etl/common/glue_io.py
+    additionalFiles: &config_files
+      - ../config/business-rules.yaml
+      - ../config/silver-mappings.yaml
+      - ../config/gold-aggregations.yaml
+      - ../config/data-quality-rules.yaml
 
 jobs:
-  # Landing to Bronze - CSV ingestion
-  - name: landing-to-bronze
-    description: "Ingest Callista CSV files from Landing to Bronze (Parquet)"
-    role: "${GlueETLRole.Arn}"
-    glue_version: "3.0"
-    python_version: "3"
-    worker_type: G.1X
-    number_of_workers: 2
-    max_concurrent_runs: 5
-    timeout: 10  # minutes
-    max_retries: 2
-    
-    script_location: "s3://${organization}-scripts/etl/bronze/landing-to-bronze.py"
-    
-    default_arguments:
-      "--job-language": "python"
-      "--enable-metrics": "true"
-      "--enable-spark-ui": "true"
-      "--spark-event-logs-path": "s3://${organization}-logs/spark-logs/"
-      "--enable-job-insights": "true"
-      "--enable-glue-datacatalog": "true"
-      "--TempDir": "s3://${organization}-temp/glue-temp/"
-      "--INPUT_BUCKET": "${organization}-landing"
-      "--OUTPUT_BUCKET": "${organization}-bronze"
-      "--DATABASE_NAME": "mcds_bronze"
-    
-    tags:
-      project: uc-mcds-data-platform
-      environment: "${context.environment}"
-      pipeline: bronze
-      layer: bronze
-      managed-by: mdaa
-      sow-deliverable: D3
-      cost-center: university-analytics
+  landing-to-bronze:
+    template: mcds-glue
+    executionRoleArn: *glue_role
+    description: "Callista CSV extract (landing) -> Bronze Parquet + catalog + Bronze DQ"
+    command:
+      name: glueetl
+      pythonVersion: "3"
+      scriptLocation: ../etl/bronze/landing-to-bronze.py
+    numberOfWorkers: 2
+    timeout: 15
+    additionalScripts: *common_scripts
+    additionalFiles: *config_files
+    defaultArguments:
+      <<: *common_args
+      --LANDING_BUCKET: ssm:/{{org}}/datalake/datalake/bucket/landing/name
+      --BRONZE_BUCKET: ssm:/{{org}}/datalake/datalake/bucket/bronze/name
+      --BRONZE_DATABASE: mcds_bronze
 
-  # Bronze to Silver - MCDS transformation
-  - name: bronze-to-silver
-    description: "Transform Bronze Callista data to Silver MCDS v2.1.1 format"
-    role: "${GlueETLRole.Arn}"
-    glue_version: "3.0"
-    python_version: "3"
-    worker_type: G.1X
-    number_of_workers: 3
-    max_concurrent_runs: 1
-    timeout: 20  # minutes
-    max_retries: 2
-    
-    script_location: "s3://${organization}-scripts/etl/silver/bronze-to-silver.py"
-    
-    default_arguments:
-      "--job-language": "python"
-      "--enable-metrics": "true"
-      "--enable-spark-ui": "true"
-      "--spark-event-logs-path": "s3://${organization}-logs/spark-logs/"
-      "--enable-job-insights": "true"
-      "--enable-glue-datacatalog": "true"
-      "--TempDir": "s3://${organization}-temp/glue-temp/"
-      "--INPUT_DATABASE": "mcds_bronze"
-      "--OUTPUT_BUCKET": "${organization}-silver"
-      "--OUTPUT_DATABASE": "mcds_silver"
-      "--CONFIG_BUCKET": "${organization}-config"
-      "--BUSINESS_RULES_PATH": "config/business-rules.yaml"
-      "--SILVER_MAPPINGS_PATH": "config/silver-mappings.yaml"
-    
-    tags:
-      project: uc-mcds-data-platform
-      environment: "${context.environment}"
-      pipeline: silver
-      layer: silver
-      managed-by: mdaa
-      sow-deliverable: D2
-      sow-deliverable-d3: transformation
-      cost-center: university-analytics
+  bronze-to-silver:
+    template: mcds-glue
+    executionRoleArn: *glue_role
+    description: "Bronze Callista -> Silver MCDS tables + lineage comments + DQ + MCDS JSON export"
+    command:
+      name: glueetl
+      pythonVersion: "3"
+      scriptLocation: ../etl/silver/bronze-to-silver.py
+    numberOfWorkers: 3
+    timeout: 20
+    additionalScripts: *common_scripts
+    additionalFiles: *config_files
+    defaultArguments:
+      <<: *common_args
+      --BRONZE_DATABASE: mcds_bronze
+      --SILVER_BUCKET: ssm:/{{org}}/datalake/datalake/bucket/silver/name
+      --SILVER_DATABASE: mcds_silver
 
-  # Silver to Gold - Analytics aggregations
-  - name: silver-to-gold
-    description: "Generate Gold analytics reports from Silver MCDS data"
-    role: "${GlueETLRole.Arn}"
-    glue_version: "3.0"
-    python_version: "3"
-    worker_type: G.1X
-    number_of_workers: 2
-    max_concurrent_runs: 1
-    timeout: 10  # minutes
-    max_retries: 2
-    
-    script_location: "s3://${organization}-scripts/etl/gold/silver-to-gold.py"
-    
-    default_arguments:
-      "--job-language": "python"
-      "--enable-metrics": "true"
-      "--enable-spark-ui": "true"
-      "--spark-event-logs-path": "s3://${organization}-logs/spark-logs/"
-      "--enable-job-insights": "true"
-      "--enable-glue-datacatalog": "true"
-      "--TempDir": "s3://${organization}-temp/glue-temp/"
-      "--INPUT_DATABASE": "mcds_silver"
-      "--OUTPUT_BUCKET": "${organization}-gold"
-      "--OUTPUT_DATABASE": "mcds_gold"
-      "--CONFIG_BUCKET": "${organization}-config"
-      "--GOLD_AGGREGATIONS_PATH": "config/gold-aggregations.yaml"
-      "--BUSINESS_RULES_PATH": "config/business-rules.yaml"
-    
-    tags:
-      project: uc-mcds-data-platform
-      environment: "${context.environment}"
-      pipeline: gold
-      layer: gold
-      managed-by: mdaa
-      sow-deliverable: D5
-      cost-center: university-analytics
-
-  # Data Quality Validation - Cross-layer checks
-  - name: data-quality-checks
-    description: "Run data quality validation across all layers"
-    role: "${GlueETLRole.Arn}"
-    glue_version: "3.0"
-    python_version: "3"
-    worker_type: G.1X
-    number_of_workers: 2
-    max_concurrent_runs: 1
-    timeout: 15  # minutes
-    max_retries: 1
-    
-    script_location: "s3://${organization}-scripts/etl/validation/data-quality-checks.py"
-    
-    default_arguments:
-      "--job-language": "python"
-      "--enable-metrics": "true"
-      "--enable-spark-ui": "true"
-      "--spark-event-logs-path": "s3://${organization}-logs/spark-logs/"
-      "--enable-job-insights": "true"
-      "--enable-glue-datacatalog": "true"
-      "--TempDir": "s3://${organization}-temp/glue-temp/"
-      "--LANDING_BUCKET": "${organization}-landing"
-      "--BRONZE_DATABASE": "mcds_bronze"
-      "--SILVER_DATABASE": "mcds_silver"
-      "--GOLD_DATABASE": "mcds_gold"
-      "--CONFIG_BUCKET": "${organization}-config"
-      "--DQ_RULES_PATH": "config/business-rules.yaml"
-    
-    tags:
-      project: uc-mcds-data-platform
-      environment: "${context.environment}"
-      pipeline: validation
-      layer: all
-      managed-by: mdaa
-      sow-deliverable: D4
-      cost-center: university-analytics
+  silver-to-gold:
+    template: mcds-glue
+    executionRoleArn: *glue_role
+    description: "Silver MCDS -> Gold student load reports + reconciliation DQ + MCDS Reporting Framework export"
+    command:
+      name: glueetl
+      pythonVersion: "3"
+      scriptLocation: ../etl/gold/silver-to-gold.py
+    numberOfWorkers: 2
+    timeout: 15
+    additionalScripts: *common_scripts
+    additionalFiles: *config_files
+    defaultArguments:
+      <<: *common_args
+      --SILVER_DATABASE: mcds_silver
+      --GOLD_BUCKET: ssm:/{{org}}/datalake/datalake/bucket/gold/name
+      --GOLD_DATABASE: mcds_gold

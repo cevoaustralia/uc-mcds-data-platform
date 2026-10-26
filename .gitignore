@@ -1,40 +1,35 @@
-# MCDS Reference Package - Never check in
+# MCDS reference package - licensed, never check in
 MCDS - v2.1.1/
 
-# Analysis documents (local only, not for check-in)
+# Local working notes / agent state (not deliverables)
 analysis/
+.agents/
 .kiro-analysis/
 **/.kiro-analysis/
-*.csv
-*-Analysis*.md
-*-Summary*.md
-*UPDATE-SUMMARY*.md
-IMPLEMENTATION-PLAN.md
+
+# Generated data (regenerate with scripts/generate-mock-data.py and run-local-pipeline.py)
+data/mock/
+.local-lake/
+spark-warehouse/
+metastore_db/
 
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-env/
+.pytest_cache/
 venv/
-.venv
+.venv/
 
-# IDEs
+# Node / CDK
+node_modules/
+cdk.out/
+
+# IDEs / OS
 .vscode/
 .idea/
 *.swp
-*.swo
-*~
-
-# OS
 .DS_Store
 Thumbs.db
-
-# Logs
 *.log
-
-# Environment variables
 .env
 .env.local

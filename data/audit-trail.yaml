@@ -1,80 +1,10 @@
-# MDAA Audit Trail Configuration
-# CloudTrail logging for compliance and security
-
+# @aws-mdaa/audit-trail - CloudTrail: management events + S3 data events (SOW D1, D4)
 trails:
-  - name: uc-mcds-audit-trail
-    description: "Audit trail for all MCDS platform S3 and Glue operations"
-    is_multi_region: true
-    include_global_service_events: true
-    enable_log_file_validation: true
-    
-    s3_bucket_name: "${organization}-audit-logs"
-    s3_key_prefix: "cloudtrail/"
-    
-    event_selectors:
-      # S3 data events for all MCDS buckets
-      - read_write_type: All
-        include_management_events: true
-        data_resources:
-          - type: "AWS::S3::Object"
-            values:
-              - "arn:aws:s3:::${organization}-landing/*"
-              - "arn:aws:s3:::${organization}-bronze/*"
-              - "arn:aws:s3:::${organization}-silver/*"
-              - "arn:aws:s3:::${organization}-gold/*"
-              - "arn:aws:s3:::${organization}-athena-results/*"
-      
-      # Lambda function invocations (if used for orchestration)
-      - read_write_type: All
-        include_management_events: false
-        data_resources:
-          - type: "AWS::Lambda::Function"
-            values:
-              - "arn:aws:lambda:*:*:function/uc-mcds-*"
-    
-    cloudwatch_logs:
-      enabled: true
-      log_group_name: "/aws/cloudtrail/uc-mcds"
-      retention_days: 90
-    
-    tags:
-      project: uc-mcds-data-platform
-      environment: "${context.environment}"
-      managed-by: mdaa
-      sow-deliverable: D1
-      sow-deliverable-d4: governance
-      cost-center: university-analytics
-
-# Audit logs bucket configuration
-audit_bucket:
-  name: "${organization}-audit-logs"
-  description: "CloudTrail audit logs for MCDS platform"
-  versioning: true
-  encryption:
-    type: kms
-    key_alias: "alias/uc-mcds-audit"
-  lifecycle_rules:
-    - id: archive-old-audit-logs
-      enabled: true
-      transitions:
-        - days: 90
-          storage_class: GLACIER
-      expiration_days: 2555  # 7 years retention
-  tags:
-    project: uc-mcds-data-platform
-    environment: "${context.environment}"
-    layer: audit
-    managed-by: mdaa
-    sow-deliverable: D4
-    cost-center: university-analytics
-
-# KMS key for audit logs
-audit_kms_key:
-  alias: "alias/uc-mcds-audit"
-  description: "Encryption key for audit logs"
-  enable_key_rotation: true
-  tags:
-    project: uc-mcds-data-platform
-    environment: "${context.environment}"
-    layer: audit
-    managed-by: mdaa
+  s3-audit:
+    cloudTrailAuditBucketName: ssm:/{{org}}/shared/audit/bucket/name
+    cloudTrailAuditKmsKeyArn: ssm:/{{org}}/shared/audit/kms/cmk/arn
+    includeManagementEvents: true
+    dataEventSelectors:
+      datalake-objects:
+        resourceType: AWS::S3::Object
+        readWriteType: All

@@ -1,44 +1,67 @@
-# MDAA Main Configuration
-# Modern Data Architecture Accelerator
-# Version: TBD (1.8.1 or 1.9.0)
+# MDAA deployment configuration (validated against @aws-mdaa/cli 1.9.0 config schema)
+# Deploy:  npx @aws-mdaa/cli synth   then   npx @aws-mdaa/cli deploy
+#
+# Domains / modules
+#   shared   : IAM personas + Glue ETL role, Lake Formation settings, Glue Catalog encryption,
+#              audit bucket + CloudTrail                                         (SOW D1, D4)
+#   datalake : S3 landing/bronze/silver/gold buckets with KMS, Athena workgroup  (SOW D1)
+#   dataops  : Glue databases with Lake Formation grants, Glue ETL jobs          (SOW D3, D4, D5)
+#
+# Callista arrives as CSV extracts uploaded to the landing bucket (no DMS in the EBA).
 
-# Organization name (globally unique, used in S3 bucket names)
-organization: uc-mcds-dev
+organization: uc-mcds            # must be globally unique (used in S3 bucket names)
+region: ap-southeast-2
+mdaa_version: "1.9.0"
 
-# AWS Context
-context:
-  # Environment: dev (Cevo AWS) or prod (University AWS)
-  environment: dev
-  
-  # VPC Configuration (required for DMS, Redshift if used)
-  vpc_id: ${VPC_ID}
-  subnet_id_1: ${SUBNET_ID_1}
-  subnet_id_2: ${SUBNET_ID_2}
-  subnet_id_3: ${SUBNET_ID_3}
-  vpc_cidr: ${VPC_CIDR}
-  
-  # Notifications
-  notification_email: sumana.pandi@cevo.com.au
-  
-  # Backup region (for cross-region replication)
-  backup_region: ap-southeast-1
-  
-  # Permissions boundary (optional)
-  # permissions_boundary_name: uc-mcds-boundary
+tag_config_data:
+  project: uc-mcds
+  managed-by: mdaa
+  cost-center: data-platform
+  owner: data-engineering-team
+  engagement: cevo-uc-mcds-eba
 
-# Modules to deploy
-modules:
-  - governance/roles
-  - governance/lakeformation-settings
-  - data/datalake
-  - data/glue-catalog
-  - data/athena-workgroup
-  - data/audit-trail
-  - dataops/project
-  - dataops/dms
-  - dataops/jobs
-  - dataops/crawler
-  - dataops/data-quality
+domains:
+  shared:
+    environments:
+      dev:
+        account: default
+        modules:
+          roles:
+            module_path: "@aws-mdaa/roles"
+            module_configs: [./governance/roles.yaml]
+          lakeformation-settings:
+            module_path: "@aws-mdaa/lakeformation-settings"
+            module_configs: [./governance/lakeformation-settings.yaml]
+          glue-catalog:
+            module_path: "@aws-mdaa/glue-catalog"
+            module_configs: [./data/glue-catalog.yaml]
+          audit:
+            module_path: "@aws-mdaa/audit"
+            module_configs: [./data/audit.yaml]
+          audit-trail:
+            module_path: "@aws-mdaa/audit-trail"
+            module_configs: [./data/audit-trail.yaml]
 
-# Configuration files location
-# Each module has its own YAML config in respective folder
+  datalake:
+    environments:
+      dev:
+        account: default
+        modules:
+          datalake:
+            module_path: "@aws-mdaa/datalake"
+            module_configs: [./data/datalake.yaml]
+          athena:
+            module_path: "@aws-mdaa/athena-workgroup"
+            module_configs: [./data/athena-workgroup.yaml]
+
+  dataops:
+    environments:
+      dev:
+        account: default
+        modules:
+          project:
+            module_path: "@aws-mdaa/dataops-project"
+            module_configs: [./dataops/project.yaml]
+          jobs:
+            module_path: "@aws-mdaa/dataops-job"
+            module_configs: [./dataops/jobs.yaml]

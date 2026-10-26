@@ -1,23 +1,8 @@
-# MDAA Athena Workgroup Configuration
-# Athena workgroups for querying Gold layer
-
-workgroups:
-  - name: uc-mcds-analytics
-    description: "MCDS analytics workgroup for Gold layer queries"
-    configuration:
-      enforce_workgroup_configuration: true
-      publish_cloudwatch_metrics: true
-      bytes_scanned_cutoff_per_query: 10737418240  # 10 GB limit
-      result_configuration:
-        output_location: "s3://${organization}-athena-results/"
-        encryption_configuration:
-          encryption_option: SSE_KMS
-          kms_key: "alias/uc-mcds-gold"
-      engine_version:
-        selected_engine_version: "Athena engine version 3"
-    tags:
-      project: uc-mcds-data-platform
-      environment: "${context.environment}"
-      managed-by: mdaa
-      sow-deliverable: D1
-      cost-center: university-analytics
+# @aws-mdaa/athena-workgroup - analyst workgroup with KMS-encrypted results bucket (SOW D1, D5)
+dataAdminRoles:
+  - id: generated-role-id:data-admin
+athenaUserRoles:
+  - id: generated-role-id:data-analyst
+  - id: generated-role-id:data-engineer
+workgroupConfiguration:
+  bytesScannedCutoffPerQuery: 10737418240   # 10 GB per query

@@ -1,321 +1,208 @@
 #!/usr/bin/env python3
 """
-UC MCDS Data Platform - Mock Data Generator
-Generates realistic Callista mock data for testing
+Generate a mock Callista CSV extract for the UC MCDS EBA.
 
-Tables Generated:
-  1. PERSON (50 records) - Student demographics
-  2. UNIT_VERSION (10 records) - Unit/course definitions
-  3. ORG_UNIT (5 records) - Organizational units/facilities
-  4. LOCATION (3 records) - Physical locations
-  5. GOVT_STUDENT_LOAD (500 records) - Student enrolment fact table
+The extract mirrors the real Callista schema (analysis/Sisprod_schema_metadata.csv) for the
+7 tables in etl/common/schemas.py, with realistic structure:
+  * composite keys (UNIT_VERSION, ORG_UNIT) incl. a unit with two versions and an org unit
+    that was restructured (two START_DT rows)
+  * GOVT_STUDENT_LOAD split by teaching responsibility (some units shared 50/50)
+  * a later SUBMISSION_NUMBER re-reporting some semester-1 attempts (must not double count)
+  * unit attempts discontinued before census (in STUDENT_UNIT_ATTEMPT, not in load)
+  * PERSON rows that are not students (staff/applicants)
+  * masked names only, no birth dates/emails (SOW: no PII)
 
-Output: CSV files in data/mock/landing/callista/YYYY-MM-DD/
+Pure standard library; deterministic (seeded).
+
+Usage:
+  python scripts/generate-mock-data.py [--extract-date 2026-10-25] [--students 150] [--out DIR]
+Output:
+  data/mock/landing/callista/<extract-date>/<TABLE>.csv
 """
 
+import argparse
 import csv
-import os
+import hashlib
 import random
-from datetime import datetime, timedelta
+import sys
 from pathlib import Path
 
-# Faker for Australian-specific data
-try:
-    from faker import Faker
-    fake = Faker('en_AU')
-except ImportError:
-    print("ERROR: Faker library not installed. Run: pip install faker")
-    exit(1)
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "etl" / "common"))
+from schemas import TABLE_SPECS, columns  # noqa: E402
+
+YEAR = 2026
+
+ORG_UNITS = [  # code, start, end, description, type
+    ("FAC-ADE", "2015-01-01", None, "Faculty of Arts and Design", "FACULTY"),
+    ("FAC-BGL", "2015-01-01", None, "Faculty of Business, Government and Law", "FACULTY"),
+    ("FAC-EDU", "2015-01-01", None, "Faculty of Education", "FACULTY"),
+    ("FAC-HLT", "2015-01-01", None, "Faculty of Health", "FACULTY"),
+    ("FAC-STE", "2015-01-01", None, "Faculty of Science and Technology", "FACULTY"),
+    # restructured school: old row ended 2025, new row from 2026 (composite key test)
+    ("SCH-ITS", "2018-01-01", "2025-12-31", "School of IT and Systems", "SCHOOL"),
+    ("SCH-ITS", "2026-01-01", None, "School of Information Technology and Systems", "SCHOOL"),
+]
+CURRENT_OU_START = {code: start for code, start, end, _, _ in ORG_UNITS if end is None}
+
+LOCATIONS = [  # code, description, type, govt code, closed
+    ("BRUCE", "Bruce Campus", "CAMPUS", "G2601", "N"),
+    ("ONLINE", "Online", "ONLINE", None, "N"),
+    ("SYDNEY", "Sydney Study Centre (mock)", "CAMPUS", "G2602", "N"),
+    ("PARTNER", "Partner Campus (mock)", "CAMPUS", "G2603", "N"),
+    ("OLDSITE", "Former Site (mock, closed)", "CAMPUS", "G2699", "Y"),
+]
+HOME_CAMPUS_WEIGHTS = [("BRUCE", 65), ("ONLINE", 20), ("SYDNEY", 10), ("PARTNER", 5)]
+
+CALENDARS = [  # cal type, seq, start, end, alternate code, govt semester
+    ("TEACH-S1", 250, "2025-02-10", "2025-06-13", "S1 2025", None),
+    ("TEACH-S2", 251, "2025-07-28", "2025-11-21", "S2 2025", None),
+    ("TEACH-S1", 260, "2026-02-09", "2026-06-12", "S1 2026", 1),
+    ("TEACH-S2", 261, "2026-07-27", "2026-11-20", "S2 2026", 2),
+]
+
+UNIT_TITLES = {
+    "FAC-ADE": ["Design Thinking", "Visual Communication", "Writing for Media", "Digital Storytelling", "Creative Industries", "Typography"],
+    "FAC-BGL": ["Accounting Principles", "Business Law", "Economics for Managers", "Public Policy", "Marketing Foundations", "Corporate Finance"],
+    "FAC-EDU": ["Learning and Development", "Curriculum Studies", "Inclusive Education", "Literacy Foundations", "Numeracy Foundations", "Professional Experience"],
+    "FAC-HLT": ["Human Anatomy", "Health Promotion", "Clinical Practice", "Nutrition Science", "Mental Health", "Sport Physiology"],
+    "FAC-STE": ["Calculus", "Chemistry Foundations", "Environmental Science", "Statistics for Science", "Physics Foundations", "Biology of Cells"],
+    "SCH-ITS": ["Programming Fundamentals", "Database Design", "Networks and Security", "Software Engineering", "Data Science", "Cloud Computing"],
+}
+COURSES = [  # code, faculty
+    ("ADE-BDES", "FAC-ADE"), ("BGL-BBUS", "FAC-BGL"), ("EDU-BED", "FAC-EDU"),
+    ("HLT-BHSC", "FAC-HLT"), ("STE-BSC", "FAC-STE"), ("ITS-BIT", "SCH-ITS"),
+]
 
 
-# Configuration
-OUTPUT_DIR = Path(__file__).parent.parent / 'data' / 'mock' / 'landing' / 'callista' / datetime.now().strftime('%Y-%m-%d')
-NUM_PERSONS = 50
-NUM_UNITS = 10
-NUM_ORG_UNITS = 5
-NUM_LOCATIONS = 3
-NUM_LOAD_RECORDS = 500
-
-# Random seed for reproducibility
-random.seed(42)
-Faker.seed(42)
+def masked(prefix, pid):
+    return f"{prefix}-{hashlib.sha256(f'{prefix}{pid}'.encode()).hexdigest()[:8].upper()}"
 
 
-def ensure_output_dir():
-    """Create output directory if it doesn't exist"""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"Output directory: {OUTPUT_DIR}")
+def build(n_students, seed=42):
+    rnd = random.Random(seed)
+    t = {name: [] for name in TABLE_SPECS}
+
+    for code, start, end, desc, typ in ORG_UNITS:
+        t["ORG_UNIT"].append(dict(ORG_UNIT_CD=code, START_DT=start, END_DT=end, DESCRIPTION=desc,
+                                  ORG_TYPE=typ, ORG_STATUS="ACTIVE" if end is None else "INACTIVE"))
+    for code, desc, typ, govt, closed in LOCATIONS:
+        t["LOCATION"].append(dict(LOCATION_CD=code, DESCRIPTION=desc, LOCATION_TYPE=typ,
+                                  GOVT_LOCATION_CD=govt, CLOSED_IND=closed))
+    for cal, seq, s, e, alt, _ in CALENDARS:
+        t["CAL_INSTANCE"].append(dict(CAL_TYPE=cal, SEQUENCE_NUMBER=seq, START_DT=s, END_DT=e,
+                                      ALTERNATE_CODE=alt, CAL_STATUS="ACTIVE"))
+
+    # Units: 6 per org; first unit of each org gets a revised version 2 from semester 2
+    units = []          # dicts with code, owner, cp, shared_with, v2
+    for owner, titles in UNIT_TITLES.items():
+        prefix = owner.split("-")[1][:3]
+        for i, title in enumerate(titles):
+            level = 1 + (i % 3)
+            code = f"{prefix}{level}{100 + i}"
+            cp = 6 if i == 5 else 3
+            shared = None
+            if i in (2, 4):  # shared teaching responsibility with another org unit
+                shared = rnd.choice([o for o in UNIT_TITLES if o != owner])
+            units.append(dict(code=code, owner=owner, cp=cp, shared=shared, v2=(i == 0), title=title, level=level))
+            t["UNIT_VERSION"].append(dict(
+                UNIT_CD=code, VERSION_NUMBER=1, TITLE=title, SHORT_TITLE=title[:40], UNIT_LEVEL=str(level),
+                ENROLLED_CREDIT_POINTS=f"{cp:.3f}", OWNER_ORG_UNIT_CD=owner,
+                OWNER_OU_START_DT="2018-01-01" if owner == "SCH-ITS" else CURRENT_OU_START[owner],
+                UNIT_STATUS="ACTIVE", START_DT="2020-01-01"))
+            if i == 0:
+                t["UNIT_VERSION"].append(dict(
+                    UNIT_CD=code, VERSION_NUMBER=2, TITLE=f"{title} (revised)", SHORT_TITLE=f"{title} (rev)"[:40],
+                    UNIT_LEVEL=str(level), ENROLLED_CREDIT_POINTS=f"{cp:.3f}", OWNER_ORG_UNIT_CD=owner,
+                    OWNER_OU_START_DT=CURRENT_OU_START[owner], UNIT_STATUS="ACTIVE", START_DT="2026-07-01"))
+    by_owner = {}
+    for u in units:
+        by_owner.setdefault(u["owner"], []).append(u)
+
+    # People: students + non-students (staff/applicants, no load)
+    pids = [3100001 + i for i in range(n_students)]
+    for pid in pids + [3900001 + i for i in range(max(10, n_students // 8))]:
+        t["PERSON"].append(dict(PERSON_ID=pid, SURNAME=masked("SURNAME", pid),
+                                GIVEN_NAMES=None if pid % 23 == 0 else masked("GIVEN", pid),
+                                UPDATE_ON="2026-10-20"))
+
+    uoo = {}
+
+    def uoo_id(code, ver, cal, seq, loc, cls):
+        return uoo.setdefault((code, ver, cal, seq, loc, cls), 1000001 + len(uoo))
+
+    sem_cals = [c for c in CALENDARS if c[5] is not None]
+    for pid in pids:
+        course, faculty = rnd.choice(COURSES)
+        home = rnd.choices([c for c, _ in HOME_CAMPUS_WEIGHTS], [w for _, w in HOME_CAMPUS_WEIGHTS])[0]
+        r = rnd.random()
+        sems = sem_cals if r > 0.2 else ([sem_cals[0]] if r > 0.1 else [sem_cals[1]])
+        for cal, seq, start, end, alt, gsem in sems:
+            n_units = rnd.choice([2, 3, 3, 4])
+            pool = by_owner[faculty] * 3 + [u for u in units if u["owner"] != faculty]
+            chosen = []
+            while len(chosen) < n_units:
+                u = rnd.choice(pool)
+                if u not in chosen:
+                    chosen.append(u)
+            for u in chosen:
+                ver = 2 if (u["v2"] and gsem == 2) else 1
+                loc = home if rnd.random() > 0.15 else "ONLINE"
+                cls = "ONLINE" if loc == "ONLINE" else "ON-CAMPUS"
+                pre_census_drop = rnd.random() < 0.04
+                sua_status = "DISCONTIN" if pre_census_drop else ("ENROLLED" if gsem == 2 else "COMPLETED")
+                t["STUDENT_UNIT_ATTEMPT"].append(dict(
+                    PERSON_ID=pid, COURSE_CD=course, UNIT_CD=u["code"], VERSION_NUMBER=ver, CAL_TYPE=cal,
+                    CI_SEQUENCE_NUMBER=seq, LOCATION_CD=loc, UNIT_CLASS=cls,
+                    UOO_ID=uoo_id(u["code"], ver, cal, seq, loc, cls), UNIT_ATTEMPT_STATUS=sua_status))
+                if pre_census_drop:
+                    continue  # withdrew before census: no government load
+                eftsu = u["cp"] / 24.0
+                splits = [(u["owner"], 1.0)] if not u["shared"] else [(u["owner"], 0.5), (u["shared"], 0.5)]
+                if gsem == 1:
+                    status = rnd.choices([3, 2, 1, 4], [80, 10, 5, 5])[0]
+                    submissions = [(1, status)]
+                    if status == 4 or rnd.random() < 0.03:   # re-reported with final outcome
+                        submissions.append((2, rnd.choices([3, 2], [85, 15])[0]))
+                else:
+                    submissions = [(2, rnd.choices([4, 1], [93, 7])[0])]
+                for sub, st in submissions:
+                    for org, share in splits:
+                        t["GOVT_STUDENT_LOAD"].append(dict(
+                            SUBMISSION_YR=YEAR, SUBMISSION_NUMBER=sub, PERSON_ID=pid, COURSE_CD=course,
+                            CRV_VERSION_NUMBER=1, GOVT_SEMESTER=gsem, UNIT_CD=u["code"], UV_VERSION_NUMBER=ver,
+                            SUA_CAL_TYPE=cal, SUA_CI_SEQUENCE_NUMBER=seq, TR_ORG_UNIT_CD=org,
+                            TR_OU_START_DT=CURRENT_OU_START[org],
+                            DISCIPLINE_GROUP_CD=f"DG{list(UNIT_TITLES).index(u['owner']) + 1:02d}",
+                            EFTSU=f"{eftsu * share:.6f}", UNIT_COMPLETION_STATUS=st,
+                            GOVT_LOCATION_CD=next(l[3] for l in LOCATIONS if l[0] == loc),
+                            UPDATE_ON="2026-10-20" if sub == 2 else "2026-04-01"))
+    return t
 
 
-def generate_person_table():
-    """Generate PERSON table with Australian demographics"""
-    print(f"Generating PERSON table ({NUM_PERSONS} records)...")
-    
-    persons = []
-    for i in range(1, NUM_PERSONS + 1):
-        # Australian-specific data
-        surname = fake.last_name()
-        given_names = f"{fake.first_name()} {fake.first_name()}" if random.random() > 0.7 else fake.first_name()
-        
-        # Birth date: students aged 18-55
-        birth_dt = fake.date_of_birth(minimum_age=18, maximum_age=55).strftime('%Y-%m-%d')
-        
-        # Email using UC domain
-        email_addr = f"{given_names.split()[0].lower()}.{surname.lower()}{random.randint(1,99)}@uni.canberra.edu.au"
-        
-        persons.append({
-            'PERSON_ID': i,
-            'SURNAME': surname,
-            'GIVEN_NAMES': given_names,
-            'BIRTH_DT': birth_dt,
-            'EMAIL_ADDR': email_addr
-        })
-    
-    # Write CSV
-    filepath = OUTPUT_DIR / 'PERSON.csv'
-    with open(filepath, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=['PERSON_ID', 'SURNAME', 'GIVEN_NAMES', 'BIRTH_DT', 'EMAIL_ADDR'])
-        writer.writeheader()
-        writer.writerows(persons)
-    
-    print(f"  ✓ Created {filepath} ({len(persons)} rows)")
-    return persons
-
-
-def generate_unit_version_table():
-    """Generate UNIT_VERSION table with realistic Australian university units"""
-    print(f"Generating UNIT_VERSION table ({NUM_UNITS} records)...")
-    
-    # Realistic UC unit codes and names
-    units_data = [
-        ('MATH1001', 'Mathematics 1A', 6.0),
-        ('PHYS1101', 'Physics 1 - Fundamentals', 6.0),
-        ('CHEM1101', 'Chemistry 1A', 6.0),
-        ('BIOL1001', 'Biology 1', 6.0),
-        ('COMP1100', 'Introduction to Programming', 6.0),
-        ('ECON1001', 'Principles of Economics', 6.0),
-        ('ENGL1001', 'Academic Writing', 3.0),
-        ('PSYC1001', 'Introduction to Psychology', 6.0),
-        ('STAT2001', 'Statistics for Data Science', 6.0),
-        ('COMM2001', 'Communication and Media', 6.0),
-    ]
-    
-    units = []
-    for i, (code, name, credit_points) in enumerate(units_data[:NUM_UNITS], 1):
-        units.append({
-            'UNIT_CD': code,
-            'UNIT_NAME': name,
-            'CREDIT_POINTS': credit_points
-        })
-    
-    # Write CSV
-    filepath = OUTPUT_DIR / 'UNIT_VERSION.csv'
-    with open(filepath, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=['UNIT_CD', 'UNIT_NAME', 'CREDIT_POINTS'])
-        writer.writeheader()
-        writer.writerows(units)
-    
-    print(f"  ✓ Created {filepath} ({len(units)} rows)")
-    return units
-
-
-def generate_org_unit_table():
-    """Generate ORG_UNIT table with UC faculties/schools"""
-    print(f"Generating ORG_UNIT table ({NUM_ORG_UNITS} records)...")
-    
-    org_units_data = [
-        ('FAC_SCI', '2020-01-01'),  # Faculty of Science
-        ('FAC_ENG', '2020-01-01'),  # Faculty of Engineering
-        ('FAC_ART', '2020-01-01'),  # Faculty of Arts
-        ('FAC_BUS', '2020-01-01'),  # Faculty of Business
-        ('FAC_EDU', '2020-01-01'),  # Faculty of Education
-    ]
-    
-    org_units = []
-    for i, (code, start_date) in enumerate(org_units_data[:NUM_ORG_UNITS], 1):
-        org_units.append({
-            'ORG_UNIT_CD': code,
-            'ORG_UNIT_START_DT': start_date
-            # NOTE: Real description column TBD from UC - using start date as placeholder
-        })
-    
-    # Write CSV
-    filepath = OUTPUT_DIR / 'ORG_UNIT.csv'
-    with open(filepath, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=['ORG_UNIT_CD', 'ORG_UNIT_START_DT'])
-        writer.writeheader()
-        writer.writerows(org_units)
-    
-    print(f"  ✓ Created {filepath} ({len(org_units)} rows)")
-    return org_units
-
-
-def generate_location_table():
-    """Generate LOCATION table with UC campuses"""
-    print(f"Generating LOCATION table ({NUM_LOCATIONS} records)...")
-    
-    locations_data = [
-        ('BRUCE', 'Bruce Campus'),  # Main campus
-        ('REID', 'Reid Campus'),
-        ('ONLINE', 'Online'),
-    ]
-    
-    locations = []
-    for i, (code, name) in enumerate(locations_data[:NUM_LOCATIONS], 1):
-        locations.append({
-            'GOVT_LOCATION_CD': code
-            # NOTE: Real location name column TBD from UC - placeholder only
-        })
-    
-    # Write CSV
-    filepath = OUTPUT_DIR / 'LOCATION.csv'
-    with open(filepath, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=['GOVT_LOCATION_CD'])
-        writer.writeheader()
-        writer.writerows(locations)
-    
-    print(f"  ✓ Created {filepath} ({len(locations)} rows)")
-    return locations
-
-
-def generate_govt_student_load_table(persons, units, org_units, locations):
-    """Generate GOVT_STUDENT_LOAD fact table with realistic enrolment patterns"""
-    print(f"Generating GOVT_STUDENT_LOAD table ({NUM_LOAD_RECORDS} records)...")
-    
-    load_records = []
-    
-    # Semesters
-    semesters = ['2024-S1', '2024-S2']
-    
-    # Unit completion statuses (1=ENROLLED, 2=CONTINUING, 3=COMPLETED, 4=WITHDRAWN - mock values)
-    active_statuses = [1, 2]  # Active enrolments only
-    all_statuses = [1, 2, 3, 4]
-    
-    for i in range(NUM_LOAD_RECORDS):
-        # Random student
-        person = random.choice(persons)
-        
-        # Random unit
-        unit = random.choice(units)
-        
-        # Random org unit (teaching responsibility)
-        org_unit = random.choice(org_units)
-        
-        # Random location (physical campus)
-        location = random.choice(locations)
-        
-        # Random semester
-        semester = random.choice(semesters)
-        
-        # EFTSU: Realistic Australian values (0.125 to 1.0 in increments of 0.125)
-        # Most units are 0.125 (equivalent to 6 credit points / 48 credit points per year)
-        eftsu_values = [0.125, 0.25, 0.5, 0.75, 1.0]
-        eftsu_weights = [70, 15, 10, 3, 2]  # 70% are 0.125
-        eftsu = random.choices(eftsu_values, weights=eftsu_weights)[0]
-        
-        # Status: 80% active, 20% completed/withdrawn
-        status = random.choices(all_statuses, weights=[50, 30, 15, 5])[0]
-        
-        load_records.append({
-            'PERSON_ID': person['PERSON_ID'],
-            'UNIT_CD': unit['UNIT_CD'],
-            'EFTSU': f"{eftsu:.3f}",
-            'TR_ORG_UNIT_CD': org_unit['ORG_UNIT_CD'],
-            'GOVT_LOCATION_CD': location['GOVT_LOCATION_CD'],
-            'GOVT_SEMESTER': semester,
-            'UNIT_COMPLETION_STATUS': status
-        })
-    
-    # Write CSV
-    filepath = OUTPUT_DIR / 'GOVT_STUDENT_LOAD.csv'
-    with open(filepath, 'w', newline='', encoding='utf-8') as f:
-        fieldnames = ['PERSON_ID', 'UNIT_CD', 'EFTSU', 'TR_ORG_UNIT_CD', 
-                      'GOVT_LOCATION_CD', 'GOVT_SEMESTER', 'UNIT_COMPLETION_STATUS']
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(load_records)
-    
-    print(f"  ✓ Created {filepath} ({len(load_records)} rows)")
-    return load_records
-
-
-def validate_referential_integrity(persons, units, org_units, locations, load_records):
-    """Validate that all foreign keys in GOVT_STUDENT_LOAD exist in parent tables"""
-    print("\nValidating referential integrity...")
-    
-    person_ids = {p['PERSON_ID'] for p in persons}
-    unit_cds = {u['UNIT_CD'] for u in units}
-    org_unit_cds = {o['ORG_UNIT_CD'] for o in org_units}
-    location_cds = {l['GOVT_LOCATION_CD'] for l in locations}
-    
-    errors = []
-    
-    for i, record in enumerate(load_records, 1):
-        if record['PERSON_ID'] not in person_ids:
-            errors.append(f"Row {i}: PERSON_ID {record['PERSON_ID']} not in PERSON table")
-        if record['UNIT_CD'] not in unit_cds:
-            errors.append(f"Row {i}: UNIT_CD {record['UNIT_CD']} not in UNIT_VERSION table")
-        if record['TR_ORG_UNIT_CD'] not in org_unit_cds:
-            errors.append(f"Row {i}: TR_ORG_UNIT_CD {record['TR_ORG_UNIT_CD']} not in ORG_UNIT table")
-        if record['GOVT_LOCATION_CD'] not in location_cds:
-            errors.append(f"Row {i}: GOVT_LOCATION_CD {record['GOVT_LOCATION_CD']} not in LOCATION table")
-    
-    if errors:
-        print(f"  ✗ FAILED - {len(errors)} referential integrity errors:")
-        for error in errors[:10]:  # Show first 10
-            print(f"    {error}")
-        if len(errors) > 10:
-            print(f"    ... and {len(errors) - 10} more errors")
-        return False
-    else:
-        print("  ✓ PASSED - All foreign keys valid")
-        return True
-
-
-def print_summary(persons, units, org_units, locations, load_records):
-    """Print generation summary"""
-    print("\n" + "="*60)
-    print("MOCK DATA GENERATION COMPLETE")
-    print("="*60)
-    print(f"Output Directory: {OUTPUT_DIR}")
-    print(f"\nRow Counts:")
-    print(f"  PERSON:              {len(persons):4d} rows")
-    print(f"  UNIT_VERSION:        {len(units):4d} rows")
-    print(f"  ORG_UNIT:            {len(org_units):4d} rows")
-    print(f"  LOCATION:            {len(locations):4d} rows")
-    print(f"  GOVT_STUDENT_LOAD:   {len(load_records):4d} rows")
-    print(f"\nTotal Records:         {len(persons) + len(units) + len(org_units) + len(locations) + len(load_records):4d}")
-    print(f"\nAll files written to: {OUTPUT_DIR}")
-    print("="*60)
+def write(tables, out_dir):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name, rows in tables.items():
+        with open(out_dir / f"{name}.csv", "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=columns(name))
+            w.writeheader()
+            for row in rows:
+                w.writerow({k: ("" if v is None else v) for k, v in row.items()})
+        print(f"  {name:22s} {len(rows):6d} rows")
 
 
 def main():
-    """Main execution"""
-    print("="*60)
-    print("UC MCDS MOCK DATA GENERATOR")
-    print("="*60)
-    print(f"Generating Callista mock data for {NUM_PERSONS} students")
-    print(f"Random seed: 42 (for reproducibility)\n")
-    
-    ensure_output_dir()
-    
-    # Generate tables
-    persons = generate_person_table()
-    units = generate_unit_version_table()
-    org_units = generate_org_unit_table()
-    locations = generate_location_table()
-    load_records = generate_govt_student_load_table(persons, units, org_units, locations)
-    
-    # Validate
-    if not validate_referential_integrity(persons, units, org_units, locations, load_records):
-        print("\n✗ VALIDATION FAILED - Referential integrity errors found")
-        exit(1)
-    
-    # Summary
-    print_summary(persons, units, org_units, locations, load_records)
-    
-    print("\n✓ SUCCESS - Mock data generated with referential integrity")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--extract-date", default="2026-10-25")
+    ap.add_argument("--students", type=int, default=150)
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--out", default=None, help="landing root (default data/mock/landing)")
+    a = ap.parse_args()
+    root = Path(a.out) if a.out else ROOT / "data" / "mock" / "landing"
+    out_dir = root / "callista" / a.extract_date
+    print(f"Writing mock Callista extract to {out_dir}")
+    write(build(a.students, a.seed), out_dir)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

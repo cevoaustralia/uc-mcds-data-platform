@@ -7,7 +7,9 @@
     "deploy": "npx @aws-mdaa/cli deploy",
     "synth": "npx @aws-mdaa/cli synth",
     "ls": "npx @aws-mdaa/cli ls",
-    "test": "cd tests && pytest"
+    "test": "pytest tests",
+    "mock": "python scripts/generate-mock-data.py",
+    "local": "python scripts/run-local-pipeline.py"
   },
   "keywords": [
     "mdaa",
@@ -21,7 +23,7 @@
     "node": ">=20.0.0"
   },
   "devDependencies": {
-    "@aws-mdaa/cli": "latest",
+    "@aws-mdaa/cli": "1.9.0",
     "aws-cdk": "^2.110.0"
   }
 }

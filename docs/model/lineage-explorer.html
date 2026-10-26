@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Callista to MCDS Lineage</title>
+<meta name="kiro:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0}
+/* Layout: four lineage columns (Callista → MCDS Silver → Gold → MCDS outputs) with an SVG edge layer, detail panel beside (wide) or below (narrow). */
+:root{
+  --bg:#f6f7f9; --surface:#ffffff; --ink:#18202b; --muted:#5b6575; --line:#d5dbe3; --dim:.22;
+  --callista:#b45309; --callista-bg:#fff7ec;
+  --silver:#1d4ed8; --silver-bg:#eef3ff;
+  --gold:#15803d; --gold-bg:#ecf8f0;
+  --out:#7c3aed; --out-bg:#f4efff;
+  --sel:#e11d48; --edge:#9aa4b2; --edge-on:#18202b; --label-bg:#ffffff;
+  --req:#b91c1c; --key:#0f766e;
+  --f-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-code:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f141b; --surface:#161d27; --ink:#e6ebf2; --muted:#9aa5b5; --line:#2a3443; --dim:.25;
+  --callista:#f59e0b; --callista-bg:#2a1f0e; --silver:#7aa2ff; --silver-bg:#132036;
+  --gold:#4ade80; --gold-bg:#0f2a1b; --out:#c4a5ff; --out-bg:#22183a;
+  --sel:#fb7185; --edge:#4b5668; --edge-on:#e6ebf2; --label-bg:#161d27; --req:#f87171; --key:#5eead4; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141b; --surface:#161d27; --ink:#e6ebf2; --muted:#9aa5b5; --line:#2a3443; --dim:.25;
+  --callista:#f59e0b; --callista-bg:#2a1f0e; --silver:#7aa2ff; --silver-bg:#132036;
+  --gold:#4ade80; --gold-bg:#0f2a1b; --out:#c4a5ff; --out-bg:#22183a;
+  --sel:#fb7185; --edge:#4b5668; --edge-on:#e6ebf2; --label-bg:#161d27; --req:#f87171; --key:#5eead4; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.45}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px;max-width:1680px;margin:0 auto;display:grid;gap:16px}
+header h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+header p{margin:4px 0 0;color:var(--muted);max-width:80ch}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:var(--muted);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:3px;border:2px solid}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:16px;align-items:start}
+@media (max-width:1280px){.main{grid-template-columns:minmax(0,1fr)}}
+.mapbox{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+.map{position:relative;display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:84px;padding:16px 24px 20px;min-width:1080px}
+.col{display:flex;flex-direction:column;gap:10px;position:relative;z-index:1}
+.colhead{font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:600;color:var(--muted);padding-bottom:4px;border-bottom:1px solid var(--line)}
+.colhead b{display:block;font-size:13px;letter-spacing:.02em;text-transform:none;color:var(--ink)}
+svg.edges{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;overflow:visible}
+svg.edges.labels{z-index:2}
+.node{all:unset;box-sizing:border-box;display:block;cursor:pointer;border:2px solid var(--c);background:var(--cbg);border-radius:8px;padding:8px 10px;transition:opacity .15s,box-shadow .15s,transform .15s}
+.node:focus-visible{outline:3px solid var(--sel);outline-offset:2px}
+.node .nm{font-family:var(--f-code);font-weight:500;font-size:12.5px;word-break:break-word}
+.node .sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+.node .k{font-family:var(--f-code);font-size:10.5px;color:var(--key);margin-top:4px;word-break:break-word}
+.node.fact{border-width:3px}
+.node[data-layer="callista"]{--c:var(--callista);--cbg:var(--callista-bg)}
+.node[data-layer="silver"]{--c:var(--silver);--cbg:var(--silver-bg)}
+.node[data-layer="gold"]{--c:var(--gold);--cbg:var(--gold-bg)}
+.node[data-layer="out"]{--c:var(--out);--cbg:var(--out-bg)}
+.map.has-sel .node{opacity:var(--dim)}
+.map.has-sel .node.up,.map.has-sel .node.down,.map.has-sel .node.rel,.map.has-sel .node.sel,.map.has-sel .node.fld{opacity:1}
+.node .k{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.node:hover{transform:translateY(-1px)}
+.node.sel{box-shadow:0 0 0 3px var(--sel);transform:translateY(-1px)}
+.node.fld{box-shadow:0 0 0 3px var(--key)}
+.tag{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:1px}
+.tag.up{background:var(--callista-bg);color:var(--callista);border:1px solid var(--callista)}
+.tag.down{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold)}
+.tag.rel{background:var(--silver-bg);color:var(--silver);border:1px solid var(--silver)}
+path.e{fill:none;stroke:var(--edge);stroke-width:1.4;transition:opacity .15s}
+path.e.join{stroke-dasharray:5 4}
+.map.has-sel path.e{opacity:0}
+.map.has-sel path.e.on{opacity:1;stroke-width:2.4}
+.map.has-sel path.e.on.up{stroke:var(--callista)}
+.map.has-sel path.e.on.dn{stroke:var(--gold)}
+.map.has-sel path.e.on.join{stroke:var(--silver);stroke-width:2}
+.map.has-sel path.e.on.far{opacity:.45;stroke-width:1.6}
+.map.has-sel .node.far{opacity:.62}
+g.lbl{display:none}
+.map.has-sel g.lbl.on{display:block}
+g.lbl rect{fill:var(--label-bg);stroke:var(--line)}
+g.lbl text{fill:var(--ink);font-family:var(--f-code);font-size:10.5px}
+aside.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:14px;min-width:0;position:sticky;top:max(12px,env(safe-area-inset-top,0px))}
+@media (max-width:1280px){aside.panel{position:static}}
+.panel h2{margin:0;font-family:var(--f-code);font-size:16px;font-weight:500;word-break:break-word}
+.panel .layer{font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.panel p{margin:0;color:var(--muted)}
+.panel h3{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.rels{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.rels li{border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.rels button{all:unset;cursor:pointer;font-family:var(--f-code);font-weight:500;color:var(--ink);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.rels button:focus-visible{outline:2px solid var(--sel)}
+.rels .how{font-family:var(--f-code);font-size:11px;color:var(--muted);margin-top:2px;word-break:break-word}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.c{font-family:var(--f-code);white-space:nowrap}
+td code,.mono{font-family:var(--f-code);font-size:11.5px;word-break:break-word}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--bg)}
+tbody tr.on{background:var(--silver-bg)}
+.badge{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:0 4px;border-radius:3px;margin-left:4px}
+.badge.req{color:var(--req);border:1px solid var(--req)}
+.badge.pk{color:var(--key);border:1px solid var(--key)}
+.hint{font-size:12px;color:var(--muted)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.toolbar button{font:inherit;font-size:12.5px;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.toolbar button:focus-visible{outline:2px solid var(--sel)}
+@media (max-width:760px){
+  .map{grid-template-columns:1fr;min-width:0;gap:20px}
+  svg.edges{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Callista → MCDS lineage</h1>
+    <p>University of Canberra MCDS EBA. Click any table or entity to highlight where its data comes from and where it goes. Click a field in the panel to trace that single field back to its Callista columns.</p>
+  </header>
+  <div class="legend" aria-label="Legend">
+    <span><i class="sw" style="border-color:var(--callista);background:var(--callista-bg)"></i>Callista CSV extract (Bronze)</span>
+    <span><i class="sw" style="border-color:var(--silver);background:var(--silver-bg)"></i>MCDS v2.1.1 model (Silver)</span>
+    <span><i class="sw" style="border-color:var(--gold);background:var(--gold-bg)"></i>D5 student load (Gold)</span>
+    <span><i class="sw" style="border-color:var(--out);background:var(--out-bg)"></i>MCDS outputs</span>
+    <span><svg width="28" height="8" aria-hidden="true"><line x1="0" y1="4" x2="28" y2="4" stroke="var(--callista)" stroke-width="2.4"/></svg>comes from (upstream)</span>
+    <span><svg width="28" height="8" aria-hidden="true"><line x1="0" y1="4" x2="28" y2="4" stroke="var(--gold)" stroke-width="2.4"/></svg>goes to (downstream)</span>
+    <span><svg width="28" height="8" aria-hidden="true"><line x1="0" y1="4" x2="28" y2="4" stroke="currentColor" stroke-width="2" stroke-dasharray="5 4" style="stroke:var(--silver)"/></svg>joined by key</span>
+    <span>Hover to preview · click to pin · Esc to clear</span>
+  </div>
+  <div class="toolbar">
+    <button type="button" id="btn-clear">Show all</button>
+    <span class="hint" id="status"></span>
+  </div>
+  <div class="main">
+    <div class="mapbox"><div class="map" id="map">
+      <svg class="edges" id="edges" aria-hidden="true"></svg>
+      <svg class="edges labels" id="labels" aria-hidden="true"></svg>
+    </div></div>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------- model data
+// Source of truth: uc-mcds-data-platform/etl/common/schemas.py and config/silver-mappings.yaml, gold-aggregations.yaml
+const COLS = [
+  {id:"callista", title:"Callista CSV extract", sub:"Bronze · mcds_bronze"},
+  {id:"silver", title:"MCDS v2.1.1 model", sub:"Silver · mcds_silver"},
+  {id:"gold", title:"D5 student load", sub:"Gold · mcds_gold"},
+  {id:"out", title:"MCDS outputs", sub:"validated artefacts"}
+];
+const C = (n,k,note)=>({n,k:!!k,note:note||""});
+const NODES = [
+  // ---- Callista
+  {id:"GOVT_STUDENT_LOAD", layer:"callista", fact:true, sub:"Fact · government census load",
+   key:"SUBMISSION_YR, SUBMISSION_NUMBER, PERSON_ID, COURSE_CD, CRV_VERSION_NUMBER, GOVT_SEMESTER, UNIT_CD, UV_VERSION_NUMBER, SUA_CAL_TYPE, SUA_CI_SEQUENCE_NUMBER, TR_ORG_UNIT_CD, TR_OU_START_DT",
+   desc:"One row per student × course × unit attempt × teaching-responsibility org unit × submission. Only the latest SUBMISSION_NUMBER per unit attempt is kept, so re-reported attempts are not double counted.",
+   cols:[C("SUBMISSION_YR",1),C("SUBMISSION_NUMBER",1,"latest per attempt kept"),C("PERSON_ID",1),C("COURSE_CD",1),C("CRV_VERSION_NUMBER",1),C("GOVT_SEMESTER",1,"NUMBER(1): 1 or 2"),C("UNIT_CD",1),C("UV_VERSION_NUMBER",1),C("SUA_CAL_TYPE",1),C("SUA_CI_SEQUENCE_NUMBER",1),C("TR_ORG_UNIT_CD",1,"teaching split"),C("TR_OU_START_DT",1),C("DISCIPLINE_GROUP_CD"),C("EFTSU",0,"load share of this split"),C("UNIT_COMPLETION_STATUS",0,"TCSI E355 1–5"),C("GOVT_LOCATION_CD",0,"nullable govt code, not used for campus"),C("UPDATE_ON")]},
+  {id:"STUDENT_UNIT_ATTEMPT", layer:"callista", sub:"Unit attempt · gives the campus",
+   key:"PERSON_ID, COURSE_CD, UNIT_CD, VERSION_NUMBER, CAL_TYPE, CI_SEQUENCE_NUMBER",
+   desc:"Joined to each load row to get the real delivery campus (LOCATION_CD) and the unit offering (UOO_ID).",
+   cols:[C("PERSON_ID",1),C("COURSE_CD",1),C("UNIT_CD",1),C("VERSION_NUMBER",1),C("CAL_TYPE",1),C("CI_SEQUENCE_NUMBER",1),C("LOCATION_CD",0,"campus"),C("UNIT_CLASS"),C("UOO_ID",0,"unit offering"),C("UNIT_ATTEMPT_STATUS")]},
+  {id:"PERSON", layer:"callista", sub:"People · names masked", key:"PERSON_ID",
+   desc:"Holds staff and applicants as well as students, so Silver keeps only people with government load. Names arrive masked (SOW: no PII).",
+   cols:[C("PERSON_ID",1),C("SURNAME",0,"masked"),C("GIVEN_NAMES",0,"masked"),C("UPDATE_ON")]},
+  {id:"UNIT_VERSION", layer:"callista", sub:"Unit definitions", key:"UNIT_CD + VERSION_NUMBER",
+   desc:"Composite key: joining on UNIT_CD alone would duplicate rows and inflate EFTSL.",
+   cols:[C("UNIT_CD",1),C("VERSION_NUMBER",1),C("TITLE"),C("SHORT_TITLE"),C("UNIT_LEVEL"),C("ENROLLED_CREDIT_POINTS"),C("OWNER_ORG_UNIT_CD"),C("OWNER_OU_START_DT"),C("UNIT_STATUS"),C("START_DT")]},
+  {id:"ORG_UNIT", layer:"callista", sub:"Faculties / schools", key:"ORG_UNIT_CD + START_DT",
+   desc:"Composite key: an org unit restructure adds a new START_DT row. The name column is DESCRIPTION.",
+   cols:[C("ORG_UNIT_CD",1),C("START_DT",1),C("END_DT"),C("DESCRIPTION"),C("ORG_TYPE"),C("ORG_STATUS")]},
+  {id:"LOCATION", layer:"callista", sub:"Campuses / online", key:"LOCATION_CD",
+   desc:"Delivery locations. Reached from the load through STUDENT_UNIT_ATTEMPT.LOCATION_CD.",
+   cols:[C("LOCATION_CD",1),C("DESCRIPTION"),C("LOCATION_TYPE"),C("GOVT_LOCATION_CD"),C("CLOSED_IND")]},
+  {id:"CAL_INSTANCE", layer:"callista", sub:"Teaching periods", key:"CAL_TYPE + SEQUENCE_NUMBER",
+   desc:"Provides the MCDS learningPeriod, which MCDS requires on every unit availability.",
+   cols:[C("CAL_TYPE",1),C("SEQUENCE_NUMBER",1),C("START_DT"),C("END_DT"),C("ALTERNATE_CODE"),C("CAL_STATUS")]},
+  // ---- Silver
+  {id:"student_unit_load", layer:"silver", fact:true, sub:"Fact · unitOfLearningEnrolment + unitOfLearningAvailability", key:"load_id",
+   desc:"One row per selected GOVT_STUDENT_LOAD row, with campus and offering from STUDENT_UNIT_ATTEMPT. References every dimension by its full composite key; DQ rules check each reference and that the join did not add rows.",
+   fields:[
+    ["load_id","hash of the full GOVT_STUDENT_LOAD key","(row key)",["GOVT_STUDENT_LOAD.SUBMISSION_YR","GOVT_STUDENT_LOAD.SUBMISSION_NUMBER","GOVT_STUDENT_LOAD.PERSON_ID","GOVT_STUDENT_LOAD.UNIT_CD","GOVT_STUDENT_LOAD.TR_ORG_UNIT_CD"],"pk"],
+    ["unit_enrolment_id","hash(PERSON_ID, COURSE_CD, UNIT_CD, UV_VERSION_NUMBER, SUA_CAL_TYPE, SUA_CI_SEQUENCE_NUMBER)","unitOfLearningEnrolmentID",["GOVT_STUDENT_LOAD.PERSON_ID","GOVT_STUDENT_LOAD.COURSE_CD","GOVT_STUDENT_LOAD.UNIT_CD","GOVT_STUDENT_LOAD.UV_VERSION_NUMBER","GOVT_STUDENT_LOAD.SUA_CAL_TYPE","GOVT_STUDENT_LOAD.SUA_CI_SEQUENCE_NUMBER"]],
+    ["programme_enrolment_id","PERSON_ID | COURSE_CD","programmeOfLearningEnrolmentID",["GOVT_STUDENT_LOAD.PERSON_ID","GOVT_STUDENT_LOAD.COURSE_CD"],"req"],
+    ["student_id","'STU-' + PERSON_ID","studentID",["GOVT_STUDENT_LOAD.PERSON_ID"],"req"],
+    ["course_code","COURSE_CD","programmeOfLearningCode",["GOVT_STUDENT_LOAD.COURSE_CD"]],
+    ["unit_of_learning_id","UNIT_CD / UV_VERSION_NUMBER","unitOfLearning.unitOfLearningID",["GOVT_STUDENT_LOAD.UNIT_CD","GOVT_STUDENT_LOAD.UV_VERSION_NUMBER"]],
+    ["unit_code","UNIT_CD","unitOfLearning.unitOfLearningCode",["GOVT_STUDENT_LOAD.UNIT_CD"]],
+    ["unit_version","UV_VERSION_NUMBER","unitOfLearning.version",["GOVT_STUDENT_LOAD.UV_VERSION_NUMBER"]],
+    ["unit_offering_id","STUDENT_UNIT_ATTEMPT.UOO_ID","unitOfLearningAvailabilityID",["STUDENT_UNIT_ATTEMPT.UOO_ID"]],
+    ["learning_period_id","SUA_CAL_TYPE | SUA_CI_SEQUENCE_NUMBER","availability.learningPeriod",["GOVT_STUDENT_LOAD.SUA_CAL_TYPE","GOVT_STUDENT_LOAD.SUA_CI_SEQUENCE_NUMBER"],"req"],
+    ["location_id","STUDENT_UNIT_ATTEMPT.LOCATION_CD","availability.location (campus)",["STUDENT_UNIT_ATTEMPT.LOCATION_CD"],"req"],
+    ["teaching_organisation_id","TR_ORG_UNIT_CD | TR_OU_START_DT","availability.responsibleOrganisations",["GOVT_STUDENT_LOAD.TR_ORG_UNIT_CD","GOVT_STUDENT_LOAD.TR_OU_START_DT"]],
+    ["teaching_org_unit_code","TR_ORG_UNIT_CD","(reporting dimension)",["GOVT_STUDENT_LOAD.TR_ORG_UNIT_CD"]],
+    ["reporting_year","SUBMISSION_YR","x-additional.governmentLoad",["GOVT_STUDENT_LOAD.SUBMISSION_YR"]],
+    ["govt_semester","GOVT_SEMESTER","x-additional.governmentLoad",["GOVT_STUDENT_LOAD.GOVT_SEMESTER"]],
+    ["reporting_period","SUBMISSION_YR + '-' + GOVT_SEMESTER  (e.g. 2026-1)","Fact Data reportingPeriod.code",["GOVT_STUDENT_LOAD.SUBMISSION_YR","GOVT_STUDENT_LOAD.GOVT_SEMESTER"]],
+    ["submission_number","SUBMISSION_NUMBER (latest per attempt)","x-additional.governmentLoad",["GOVT_STUDENT_LOAD.SUBMISSION_NUMBER"]],
+    ["eftsu","EFTSU","x-additional.governmentLoad.eftsl",["GOVT_STUDENT_LOAD.EFTSU"]],
+    ["completion_status","UNIT_COMPLETION_STATUS","status (E355 code)",["GOVT_STUDENT_LOAD.UNIT_COMPLETION_STATUS"]],
+    ["completion_status_label","E355 code → Completed / Failed / Withdrawn / In Progress","unitOfLearningEnrolment.status",["GOVT_STUDENT_LOAD.UNIT_COMPLETION_STATUS"]],
+    ["discipline_group_code","DISCIPLINE_GROUP_CD","x-additional.governmentLoad",["GOVT_STUDENT_LOAD.DISCIPLINE_GROUP_CD"]]
+   ]},
+  {id:"student", layer:"silver", sub:"parties#/$defs/student", key:"student_id",
+   desc:"People from PERSON who have government load. MCDS requires studentID, studentNumber and studentName.lastName.",
+   fields:[
+    ["student_id","'STU-' + PERSON_ID","studentID (must differ from personID)",["PERSON.PERSON_ID"],"req"],
+    ["person_id","PERSON_ID","personID",["PERSON.PERSON_ID"]],
+    ["student_number","PERSON_ID (default, UC to confirm OD-1)","studentNumber",["PERSON.PERSON_ID"],"req"],
+    ["last_name","SURNAME (masked)","studentName.lastName",["PERSON.SURNAME"],"req"],
+    ["first_name","GIVEN_NAMES (masked)","studentName.firstName",["PERSON.GIVEN_NAMES"]]
+   ]},
+  {id:"unit_of_learning", layer:"silver", sub:"curriculum#/$defs/unitOfLearning", key:"unit_of_learning_id",
+   desc:"One row per unit version.",
+   fields:[
+    ["unit_of_learning_id","UNIT_CD / VERSION_NUMBER","unitOfLearningID",["UNIT_VERSION.UNIT_CD","UNIT_VERSION.VERSION_NUMBER"],"pk"],
+    ["unit_code","UNIT_CD","unitOfLearningCode",["UNIT_VERSION.UNIT_CD"],"req"],
+    ["unit_version","VERSION_NUMBER","version",["UNIT_VERSION.VERSION_NUMBER"]],
+    ["unit_name","TITLE","unitOfLearningName",["UNIT_VERSION.TITLE"],"req"],
+    ["short_name","SHORT_TITLE","shortName",["UNIT_VERSION.SHORT_TITLE"]],
+    ["unit_level","UNIT_LEVEL","level",["UNIT_VERSION.UNIT_LEVEL"]],
+    ["credit_points","ENROLLED_CREDIT_POINTS","x-additional.enrolledCreditPoints",["UNIT_VERSION.ENROLLED_CREDIT_POINTS"]],
+    ["owner_organisation_id","OWNER_ORG_UNIT_CD | OWNER_OU_START_DT","responsibleOrganisations (Unit owner)",["UNIT_VERSION.OWNER_ORG_UNIT_CD","UNIT_VERSION.OWNER_OU_START_DT"]],
+    ["unit_status","UNIT_STATUS","status",["UNIT_VERSION.UNIT_STATUS"]]
+   ]},
+  {id:"location", layer:"silver", sub:"locations#/$defs/location · campus facility", key:"location_id",
+   desc:"The campus view of “facility” (headline D5 facility report).",
+   fields:[
+    ["location_id","LOCATION_CD","locationID",["LOCATION.LOCATION_CD"],"pk"],
+    ["location_code","LOCATION_CD","code",["LOCATION.LOCATION_CD"]],
+    ["location_name","DESCRIPTION","locationName",["LOCATION.DESCRIPTION"],"req"],
+    ["location_type","LOCATION_TYPE mapped → Campus / Virtual / Site","locationType",["LOCATION.LOCATION_TYPE"]],
+    ["govt_location_cd","GOVT_LOCATION_CD","x-additional.govtLocationCode",["LOCATION.GOVT_LOCATION_CD"]],
+    ["is_closed","CLOSED_IND = 'Y'","(DQ warning only)",["LOCATION.CLOSED_IND"]]
+   ]},
+  {id:"organisation", layer:"silver", sub:"parties#/$defs/organisation · faculty facility", key:"organisation_id",
+   desc:"The teaching faculty/school view of “facility”.",
+   fields:[
+    ["organisation_id","ORG_UNIT_CD | START_DT","organisationID",["ORG_UNIT.ORG_UNIT_CD","ORG_UNIT.START_DT"],"pk"],
+    ["organisation_code","ORG_UNIT_CD","organisationCode",["ORG_UNIT.ORG_UNIT_CD"]],
+    ["organisation_name","DESCRIPTION","organisationName",["ORG_UNIT.DESCRIPTION"],"req"],
+    ["organisation_type","ORG_TYPE","x-additional.callistaOrgType",["ORG_UNIT.ORG_TYPE"]],
+    ["start_date","START_DT","x-additional.effectiveFromDate",["ORG_UNIT.START_DT"]],
+    ["end_date","END_DT","x-additional.effectiveToDate",["ORG_UNIT.END_DT"]],
+    ["status","ORG_STATUS","status",["ORG_UNIT.ORG_STATUS"]]
+   ]},
+  {id:"learning_period", layer:"silver", sub:"time#/$defs/learningPeriod", key:"learning_period_id",
+   desc:"Required by MCDS on every unitOfLearningAvailability.",
+   fields:[
+    ["learning_period_id","CAL_TYPE | SEQUENCE_NUMBER","learningPeriodID",["CAL_INSTANCE.CAL_TYPE","CAL_INSTANCE.SEQUENCE_NUMBER"],"pk"],
+    ["cal_type","CAL_TYPE","x-additional.callistaCalType",["CAL_INSTANCE.CAL_TYPE"]],
+    ["code","ALTERNATE_CODE (e.g. S1 2026)","code",["CAL_INSTANCE.ALTERNATE_CODE"]],
+    ["start_date","START_DT","startDate",["CAL_INSTANCE.START_DT"]],
+    ["end_date","END_DT","endDate",["CAL_INSTANCE.END_DT"]],
+    ["year","year(START_DT)","year",["CAL_INSTANCE.START_DT"]]
+   ]},
+  // ---- Gold
+  {id:"student_load_by_unit", layer:"gold", sub:"period × unit · D5 report 1", key:"reporting_period, unit_code",
+   desc:"“How many students in each unit.” Headcount is distinct students and is not additive across rows.",
+   fields:[
+    ["reporting_period","f.reporting_period","dimension",["student_unit_load.reporting_period"]],
+    ["unit_code","f.unit_code","dim.unit member",["student_unit_load.unit_code"]],
+    ["unit_name","name of the latest unit version","dim.unit label",["unit_of_learning.unit_name"]],
+    ["headcount","COUNT(DISTINCT f.student_id)","HEADCOUNT fact",["student_unit_load.student_id"]],
+    ["eftsl","SUM(f.eftsu)","EFTSL fact",["student_unit_load.eftsu"]],
+    ["unit_enrolments","COUNT(DISTINCT f.unit_enrolment_id)","",["student_unit_load.unit_enrolment_id"]],
+    ["eftsl_per_student","eftsl / headcount","EFTSL_PER_STUDENT (derived)",["student_unit_load.eftsu","student_unit_load.student_id"]]
+   ]},
+  {id:"student_load_by_campus", layer:"gold", sub:"period × campus · headline facility", key:"reporting_period, location_id",
+   desc:"Facility = campus (MCDS location).",
+   fields:[
+    ["reporting_period","f.reporting_period","dimension",["student_unit_load.reporting_period"]],
+    ["location_id","f.location_id","dim.campus member",["student_unit_load.location_id"]],
+    ["location_name","l.location_name","dim.campus label",["location.location_name"]],
+    ["headcount","COUNT(DISTINCT f.student_id)","HEADCOUNT fact",["student_unit_load.student_id"]],
+    ["eftsl","SUM(f.eftsu)","EFTSL fact",["student_unit_load.eftsu"]],
+    ["unit_count","COUNT(DISTINCT f.unit_code)","",["student_unit_load.unit_code"]],
+    ["eftsl_per_student","eftsl / headcount","derived",["student_unit_load.eftsu","student_unit_load.student_id"]]
+   ]},
+  {id:"student_load_by_teaching_org_unit", layer:"gold", sub:"period × faculty/school", key:"reporting_period, org_unit_code",
+   desc:"Facility = teaching-responsibility org unit (MCDS organisation).",
+   fields:[
+    ["reporting_period","f.reporting_period","dimension",["student_unit_load.reporting_period"]],
+    ["org_unit_code","f.teaching_org_unit_code","dim.orgUnit member",["student_unit_load.teaching_org_unit_code"]],
+    ["org_unit_name","name of the latest org unit row","dim.orgUnit label",["organisation.organisation_name"]],
+    ["headcount","COUNT(DISTINCT f.student_id)","HEADCOUNT fact",["student_unit_load.student_id"]],
+    ["eftsl","SUM(f.eftsu)","EFTSL fact",["student_unit_load.eftsu"]],
+    ["unit_count","COUNT(DISTINCT f.unit_code)","",["student_unit_load.unit_code"]],
+    ["eftsl_per_student","eftsl / headcount","derived",["student_unit_load.eftsu","student_unit_load.student_id"]]
+   ]},
+  {id:"student_load_by_unit_campus", layer:"gold", sub:"period × unit × campus · cross-mapping", key:"reporting_period, unit_code, location_id",
+   desc:"Cross-mapping of units to facilities.",
+   fields:[
+    ["reporting_period","f.reporting_period","dimension",["student_unit_load.reporting_period"]],
+    ["unit_code","f.unit_code","dim.unit member",["student_unit_load.unit_code"]],
+    ["unit_name","latest unit version name","dim.unit label",["unit_of_learning.unit_name"]],
+    ["location_id","f.location_id","dim.campus member",["student_unit_load.location_id"]],
+    ["location_name","l.location_name","dim.campus label",["location.location_name"]],
+    ["headcount","COUNT(DISTINCT f.student_id)","HEADCOUNT fact",["student_unit_load.student_id"]],
+    ["eftsl","SUM(f.eftsu)","EFTSL fact",["student_unit_load.eftsu"]]
+   ]},
+  {id:"reporting_period", layer:"gold", sub:"period totals + dates", key:"reporting_period",
+   desc:"Period totals and the start/end dates used in every Fact Data file.",
+   fields:[
+    ["reporting_period","f.reporting_period","reportingPeriod.code",["student_unit_load.reporting_period"]],
+    ["start_date","MIN(p.start_date)","reportingPeriod.startDate",["learning_period.start_date"]],
+    ["end_date","MAX(p.end_date)","reportingPeriod.endDate",["learning_period.end_date"]],
+    ["headcount","COUNT(DISTINCT f.student_id)","",["student_unit_load.student_id"]],
+    ["eftsl","SUM(f.eftsu)","",["student_unit_load.eftsu"]]
+   ]},
+  // ---- Outputs
+  {id:"MCDS JSON payloads", layer:"out", sub:"validated vs studentlifecycle.schema.json", key:"students-NNNN.json",
+   desc:"MCDS student-domain documents. Validated from the studentlifecycle root with every $ref resolved (not parties.schema.json, which validates nothing).",
+   fields:[
+    ["students[]","one per Silver student, with nested unitOfLearningEnrolments","parties#/student",["student.student_id","student_unit_load.unit_enrolment_id"]],
+    ["unitOfLearningEnrolments[]","load rows grouped per unit attempt; teaching splits merged","student-management#/unitOfLearningEnrolment",["student_unit_load.unit_enrolment_id","student_unit_load.eftsu"]],
+    ["unitsOfLearning[]","Silver unit_of_learning","curriculum#/unitOfLearning",["unit_of_learning.unit_of_learning_id"]],
+    ["organisations[]","Silver organisation","parties#/organisation",["organisation.organisation_id"]],
+    ["locations[]","Silver location","locations#/location",["location.location_id"]],
+    ["learningPeriods[]","Silver learning_period","time#/learningPeriod",["learning_period.learning_period_id"]],
+    ["programmeOfLearningEnrolments[]","distinct programme_enrolment_id","student-management#/programmeOfLearningEnrolment",["student_unit_load.programme_enrolment_id"]]
+   ]},
+  {id:"MCDS Reporting Framework", layer:"out", sub:"report definitions + fact data", key:"AU.UC.StudentLoadBy…",
+   desc:"Standardised student load: one Report Definition per report (dimensions + dim.metric HEADCOUNT / EFTSL) and one Fact Data file per report per period.",
+   fields:[
+    ["AU.UC.StudentLoadByUnit","dim.unit × dim.metric","report definition + fact data",["student_load_by_unit.headcount","student_load_by_unit.eftsl"]],
+    ["AU.UC.StudentLoadByCampus","dim.campus × dim.metric","report definition + fact data",["student_load_by_campus.headcount","student_load_by_campus.eftsl"]],
+    ["AU.UC.StudentLoadByTeachingOrgUnit","dim.orgUnit × dim.metric","report definition + fact data",["student_load_by_teaching_org_unit.headcount","student_load_by_teaching_org_unit.eftsl"]],
+    ["AU.UC.StudentLoadByUnitAndCampus","dim.unit × dim.campus × dim.metric","report definition + fact data",["student_load_by_unit_campus.headcount","student_load_by_unit_campus.eftsl"]],
+    ["reportingPeriod","start/end dates per period","factData.reportingPeriod",["reporting_period.start_date","reporting_period.end_date"]]
+   ]}
+];
+// kind: flow (data moves) | join (key relationship inside Silver)
+const EDGES = [
+  ["GOVT_STUDENT_LOAD","student_unit_load","flow","selected load rows (latest submission per unit attempt)"],
+  ["STUDENT_UNIT_ATTEMPT","student_unit_load","flow","PERSON_ID, COURSE_CD, UNIT_CD, UV_VERSION_NUMBER=VERSION_NUMBER, SUA_CAL_TYPE=CAL_TYPE, SUA_CI_SEQUENCE_NUMBER=CI_SEQUENCE_NUMBER → LOCATION_CD, UOO_ID"],
+  ["PERSON","student","flow","PERSON_ID (only people with load)"],
+  ["GOVT_STUDENT_LOAD","student","flow","PERSON_ID filter: keep people with load"],
+  ["UNIT_VERSION","unit_of_learning","flow","UNIT_CD + VERSION_NUMBER"],
+  ["LOCATION","location","flow","LOCATION_CD"],
+  ["ORG_UNIT","organisation","flow","ORG_UNIT_CD + START_DT"],
+  ["CAL_INSTANCE","learning_period","flow","CAL_TYPE + SEQUENCE_NUMBER"],
+  ["student_unit_load","student","join","student_id"],
+  ["student_unit_load","unit_of_learning","join","unit_of_learning_id = UNIT_CD/UV_VERSION_NUMBER"],
+  ["student_unit_load","location","join","location_id = STUDENT_UNIT_ATTEMPT.LOCATION_CD"],
+  ["student_unit_load","organisation","join","teaching_organisation_id = TR_ORG_UNIT_CD|TR_OU_START_DT"],
+  ["student_unit_load","learning_period","join","learning_period_id = SUA_CAL_TYPE|SUA_CI_SEQUENCE_NUMBER"],
+  ["student_unit_load","student_load_by_unit","flow","GROUP BY reporting_period, unit_code"],
+  ["unit_of_learning","student_load_by_unit","flow","unit name (latest version)"],
+  ["student_unit_load","student_load_by_campus","flow","GROUP BY reporting_period, location_id"],
+  ["location","student_load_by_campus","flow","campus name"],
+  ["student_unit_load","student_load_by_teaching_org_unit","flow","GROUP BY reporting_period, teaching_org_unit_code"],
+  ["organisation","student_load_by_teaching_org_unit","flow","org unit name (latest start date)"],
+  ["student_unit_load","student_load_by_unit_campus","flow","GROUP BY reporting_period, unit_code, location_id"],
+  ["unit_of_learning","student_load_by_unit_campus","flow","unit name"],
+  ["location","student_load_by_unit_campus","flow","campus name"],
+  ["student_unit_load","reporting_period","flow","GROUP BY reporting_period"],
+  ["learning_period","reporting_period","flow","period start / end dates"],
+  ["student","MCDS JSON payloads","flow","students[]"],
+  ["student_unit_load","MCDS JSON payloads","flow","unitOfLearningEnrolments[]"],
+  ["unit_of_learning","MCDS JSON payloads","flow","unitsOfLearning[]"],
+  ["organisation","MCDS JSON payloads","flow","organisations[]"],
+  ["location","MCDS JSON payloads","flow","locations[]"],
+  ["learning_period","MCDS JSON payloads","flow","learningPeriods[]"],
+  ["student_load_by_unit","MCDS Reporting Framework","flow","AU.UC.StudentLoadByUnit"],
+  ["student_load_by_campus","MCDS Reporting Framework","flow","AU.UC.StudentLoadByCampus"],
+  ["student_load_by_teaching_org_unit","MCDS Reporting Framework","flow","AU.UC.StudentLoadByTeachingOrgUnit"],
+  ["student_load_by_unit_campus","MCDS Reporting Framework","flow","AU.UC.StudentLoadByUnitAndCampus"],
+  ["reporting_period","MCDS Reporting Framework","flow","reportingPeriod dates"]
+].map(([from,to,kind,how],i)=>({i,from,to,kind,how}));
+
+const byId = Object.fromEntries(NODES.map(n=>[n.id,n]));
+const tok = id => id.replace(/\W/g,"_");
+const byTok = Object.fromEntries(NODES.map(n=>[tok(n.id),n.id]));
+const LAYER_NAME = {callista:"Callista table (Bronze)",silver:"MCDS entity (Silver)",gold:"Gold report",out:"MCDS output"};
+
+// Callista columns: compute where each column goes (from Silver field refs)
+for (const n of NODES) if (n.layer==="callista") for (const c of n.cols) {
+  const ref = `${n.id}.${c.n}`;
+  c.to = NODES.filter(m=>m.fields).flatMap(m=>m.fields.filter(f=>f[3].includes(ref)).map(f=>`${m.id}.${f[0]}`));
+}
+
+// ---------------------------------------------------------------- render nodes
+const map = document.getElementById("map"), svg = document.getElementById("edges"), lsvg = document.getElementById("labels");
+for (const col of COLS) {
+  const el = document.createElement("div"); el.className="col"; el.dataset.col=col.id;
+  el.innerHTML = `<div class="colhead">${col.sub}<b>${col.title}</b></div>`;
+  for (const n of NODES.filter(n=>n.layer===col.id)) {
+    const b = document.createElement("button");
+    b.type="button"; b.className="node"+(n.fact?" fact":""); b.dataset.layer=n.layer; b.dataset.id=n.id; b.id="n-"+n.id.replace(/\W/g,"_");
+    b.setAttribute("aria-pressed","false");
+    const shortKey = n.key.split(",").length>6 ? `${n.key.split(",").length}-column natural key` : n.key;
+    b.title = "key: "+n.key;
+    b.innerHTML = `<div class="nm">${n.id}${n.fact?' <span class="tag rel" style="margin-left:4px">fact</span>':''}<span class="mark"></span></div><div class="sub">${n.sub}</div><div class="k">key: ${shortKey}</div>`;
+    b.addEventListener("click",()=>select(n.id));
+    b.addEventListener("mouseenter",()=>{ preview=n.id; applyHighlight(); });
+    b.addEventListener("mouseleave",()=>{ preview=null; applyHighlight(); });
+    el.appendChild(b);
+  }
+  map.appendChild(el);
+}
+const nodeEl = id => document.getElementById("n-"+id.replace(/\W/g,"_"));
+
+// ---------------------------------------------------------------- edges
+const NS="http://www.w3.org/2000/svg";
+function drawEdges(){
+  const mk=(id,c)=>`<marker id="${id}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="${c}"/></marker>`;
+  svg.innerHTML = `<defs>${mk("ar","var(--edge)")}${mk("ar-up","var(--callista)")}${mk("ar-dn","var(--gold)")}</defs>`;
+  lsvg.innerHTML = "";
+  if (getComputedStyle(svg).display==="none") return;
+  const box = map.getBoundingClientRect();
+  const lblLayer = document.createElementNS(NS,"g");
+  for (const e of EDGES) {
+    const a = nodeEl(e.from).getBoundingClientRect(), b = nodeEl(e.to).getBoundingClientRect();
+    let d, mx, my;
+    if (e.kind==="join") { // same column: arc on the right side
+      const x1=a.right-box.left, y1=a.top+a.height/2-box.top, x2=b.right-box.left, y2=b.top+b.height/2-box.top;
+      const bulge = 26;
+      d=`M${x1},${y1} C${x1+bulge},${y1} ${x2+bulge},${y2} ${x2},${y2}`; mx=Math.max(x1,x2)+bulge*.75; my=(y1+y2)/2;
+    } else {
+      const x1=a.right-box.left, y1=a.top+a.height/2-box.top, x2=b.left-box.left-2, y2=b.top+b.height/2-box.top;
+      const dx=Math.max(30,(x2-x1)/2);
+      d=`M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`;
+      const span = x2-x1 > (map.clientWidth/3); // crosses a column: put the label in the last gutter
+      mx = span ? x2-42 : (x1+x2)/2; my = span ? y2-10 : (y1+y2)/2;
+    }
+    const p=document.createElementNS(NS,"path"); p.setAttribute("d",d); p.setAttribute("class","e "+e.kind); p.dataset.i=e.i;
+    if (e.kind==="flow") p.setAttribute("marker-end","url(#ar)");
+    svg.appendChild(p);
+    const g=document.createElementNS(NS,"g"); g.setAttribute("class","lbl"); g.dataset.i=e.i;
+    const t=document.createElementNS(NS,"text"); const txt=e.how.length>34?e.how.slice(0,32)+"…":e.how;
+    t.textContent=txt; t.setAttribute("x",mx); t.setAttribute("y",my+3.5); t.setAttribute("text-anchor","middle");
+    g.appendChild(t); lblLayer.appendChild(g); g._t=t;
+  }
+  lsvg.appendChild(lblLayer);
+  for (const g of lblLayer.children){ const bb=g._t.getBBox(); const r=document.createElementNS(NS,"rect");
+    r.setAttribute("x",bb.x-4); r.setAttribute("y",bb.y-2); r.setAttribute("width",bb.width+8); r.setAttribute("height",bb.height+4); r.setAttribute("rx",3); g.insertBefore(r,g._t); }
+  applyHighlight();
+}
+
+// ---------------------------------------------------------------- field trace (transitive back to Callista)
+function traceField(nodeId, idx){
+  const steps=[], seen=new Set();
+  (function go(nid, fidx, depth){
+    const f = byId[nid].fields[fidx];
+    for (const r of f[3]) {
+      if (seen.has(r)) continue; seen.add(r);
+      const [t,c] = r.split("."); const tn = byId[t];
+      steps.push({depth, from:`${nid}.${f[0]}`, ref:r, layer:tn.layer});
+      if (tn.fields) { const j = tn.fields.findIndex(x=>x[0]===c); if (j>=0) go(t, j, depth+1); }
+    }
+  })(nodeId, idx, 0);
+  return steps;
+}
+
+// ---------------------------------------------------------------- selection
+let state = {node:null, field:null}; let preview = null;
+function walk(start, dir){ // transitive along flow edges
+  const seen=new Set(), stack=[start];
+  while(stack.length){ const x=stack.pop();
+    for (const e of EDGES) if (e.kind==="flow") {
+      const nxt = dir==="up" ? (e.to===x?e.from:null) : (e.from===x?e.to:null);
+      if (nxt && !seen.has(nxt)) { seen.add(nxt); stack.push(nxt); }
+    } }
+  return seen;
+}
+function select(id, field=null){
+  state = {node:id, field};
+  try{ history.replaceState(null,"","#"+tok(id)); }catch(e){}
+  applyHighlight(); renderPanel();
+}
+function clearSel(){ state={node:null,field:null}; applyHighlight(); renderPanel(); }
+
+function applyHighlight(){
+  const id = preview || state.node;
+  map.classList.toggle("has-sel", !!id);
+  const up = id?walk(id,"up"):new Set(), down=id?walk(id,"down"):new Set();
+  const rel = new Set(); if(id) for (const e of EDGES) if(e.kind==="join"){ if(e.from===id) rel.add(e.to); if(e.to===id) rel.add(e.from); }
+  // field mode: nodes holding the referenced source fields
+  const direct = new Set(); if(id) for (const e of EDGES){ if(e.from===id) direct.add(e.to); if(e.to===id) direct.add(e.from); }
+  const directCount = id ? EDGES.filter(e=>e.from===id||e.to===id).length : 0;
+  const fld = new Set();
+  if (id && !preview && state.field!=null && byId[id].fields) traceField(id, state.field).forEach(st=>fld.add(st.ref.split(".")[0]));
+  for (const n of NODES){ const el=nodeEl(n.id);
+    el.classList.toggle("sel",n.id===id); el.classList.toggle("up",up.has(n.id)); el.classList.toggle("down",down.has(n.id));
+    el.classList.toggle("rel",rel.has(n.id)&&!up.has(n.id)&&!down.has(n.id)); el.classList.toggle("fld",fld.has(n.id));
+    el.classList.toggle("far", !!id && n.id!==id && !direct.has(n.id) && !fld.has(n.id) && (up.has(n.id)||down.has(n.id)));
+    el.setAttribute("aria-pressed", n.id===id?"true":"false");
+    const m=el.querySelector(".mark"); m.innerHTML = n.id===id?"" : up.has(n.id)?'<span class="tag up">from</span>' : down.has(n.id)?'<span class="tag down">to</span>' : rel.has(n.id)?'<span class="tag rel">joined</span>':"";
+  }
+  svg.querySelectorAll("path.e").forEach(p=>{ const e=EDGES[+p.dataset.i];
+    const inU = x => x===id || up.has(x), inD = x => x===id || down.has(x);
+    const isUp = e.kind==="flow" && inU(e.from)&&inU(e.to), isDn = e.kind==="flow" && inD(e.from)&&inD(e.to);
+    const lit = e.kind==="flow" ? (isUp||isDn) : (e.from===id||e.to===id);
+    const isDirect = e.from===id || e.to===id;
+    p.classList.toggle("on", !!id && lit); p.classList.toggle("up", isUp); p.classList.toggle("dn", isDn && !isUp);
+    p.classList.toggle("far", !!id && lit && !isDirect);
+    p.dataset.direct = isDirect && lit ? "1" : "";
+    if (e.kind==="flow") p.setAttribute("marker-end", !id||!lit ? "url(#ar)" : isUp ? "url(#ar-up)" : "url(#ar-dn)"); });
+  lsvg.querySelectorAll("g.lbl").forEach(g=>{ const p=svg.querySelector(`path.e[data-i="${g.dataset.i}"]`); const e=EDGES[+g.dataset.i]; const busy=directCount>6;
+    g.classList.toggle("on", p.dataset.direct==="1" && !(busy && (e.kind==="join" || e.from===id))); });
+  if (preview) { document.getElementById("status").textContent = `Previewing ${id} (click to pin)`; return; }
+  document.getElementById("status").textContent = id ? `${id}: ${up.size} upstream, ${down.size} downstream${rel.size?`, ${rel.size} joined`:""}` : "Nothing selected: showing the whole model";
+}
+
+// ---------------------------------------------------------------- panel
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function relList(list, dirWord){
+  if(!list.length) return `<p class="hint">None</p>`;
+  return `<ul class="rels">${list.map(e=>{const other = dirWord==="from"?e.from:e.to;
+    return `<li><button type="button" data-go="${esc(other)}">${esc(other)}</button> <span class="hint">${LAYER_NAME[byId[other].layer]}</span><div class="how">${esc(e.how)}</div></li>`}).join("")}</ul>`;
+}
+function renderPanel(){
+  const P=document.getElementById("panel");
+  if(!state.node){
+    P.innerHTML = `<div><div class="layer" style="color:var(--muted)">How to use</div><h2>Select an entity</h2></div>
+      <p>Click a box on the map. Upstream sources are tagged <span class="tag up">from</span>, downstream targets <span class="tag down">to</span>, and Silver entities joined by key <span class="tag rel">joined</span>. Highlighted lines show the join keys.</p>
+      <p>Then click a field in the table here to trace that one field to its Callista columns.</p>
+      <p class="hint">Model source: uc-mcds-data-platform/config/silver-mappings.yaml and gold-aggregations.yaml.</p>`;
+    return;
+  }
+  const n=byId[state.node];
+  const ins = EDGES.filter(e=>e.to===n.id && e.kind==="flow");
+  const outs = EDGES.filter(e=>e.from===n.id && e.kind==="flow");
+  const joins = EDGES.filter(e=>e.kind==="join" && (e.from===n.id||e.to===n.id)).map(e=>({...e, from: e.from===n.id?e.to:e.from}));
+  const color = {callista:"var(--callista)",silver:"var(--silver)",gold:"var(--gold)",out:"var(--out)"}[n.layer];
+  let fields="";
+  if (n.cols){
+    fields = `<div><h3>Columns → where they go</h3><div class="tbl"><table><thead><tr><th>Column</th><th>Goes to</th></tr></thead><tbody>${
+      n.cols.map(c=>`<tr data-col="${esc(c.n)}"><td class="c">${esc(c.n)}${c.k?'<span class="badge pk">key</span>':''}${c.note?`<div class="hint" style="white-space:normal">${esc(c.note)}</div>`:''}</td><td>${c.to.length?c.to.map(t=>`<code>${esc(t)}</code>`).join("<br>"):'<span class="hint">join / filter only</span>'}</td></tr>`).join("")}</tbody></table></div></div>`;
+  } else if (n.fields){
+    fields = `<div><h3>Fields ← where they come from <span class="hint" style="text-transform:none;letter-spacing:0">(click a row to trace)</span></h3><div class="tbl"><table><thead><tr><th>Field</th><th>Derived from</th><th>MCDS / meaning</th></tr></thead><tbody>${
+      n.fields.map((f,i)=>`<tr data-f="${i}" class="${state.field===i?'on':''}" tabindex="0"><td class="c">${esc(f[0])}${f[4]==='req'?'<span class="badge req">req</span>':''}${f[4]==='pk'?'<span class="badge pk">pk</span>':''}</td><td><code>${esc(f[1])}</code></td><td><code>${esc(f[2])}</code></td></tr>`).join("")}</tbody></table></div></div>`;
+  }
+  let trace="";
+  if (state.field!=null && n.fields){ const f=n.fields[state.field]; const st=traceField(n.id, state.field);
+    trace = `<div><h3>Trace: ${esc(f[0])} back to Callista</h3><ul class="rels">${st.map(x=>{const [t,c]=x.ref.split(".");
+      return `<li style="margin-left:${x.depth*14}px"><span class="hint mono">${esc(x.from)} ←</span><br><button type="button" data-go="${esc(t)}">${esc(t)}</button><span class="mono"> .${esc(c)}</span> <span class="hint">${LAYER_NAME[x.layer]}</span></li>`}).join("")}</ul></div>`; }
+  P.innerHTML = `<div><div class="layer" style="color:${color}">${LAYER_NAME[n.layer]}</div><h2>${esc(n.id)}</h2><div class="hint mono">key: ${esc(n.key)}</div></div>
+    <p>${esc(n.desc)}</p>
+    ${trace}
+    <div><h3>Comes from</h3>${relList(ins,"from")}</div>
+    ${joins.length?`<div><h3>Joined by key (Silver)</h3>${relList(joins,"from")}</div>`:""}
+    <div><h3>Goes to</h3>${relList(outs,"to")}</div>
+    ${fields}`;
+  P.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>select(b.dataset.go)));
+  P.querySelectorAll("tr[data-f]").forEach(tr=>{ const go=()=>select(n.id, state.field===+tr.dataset.f?null:+tr.dataset.f);
+    tr.addEventListener("click",go); tr.addEventListener("keydown",ev=>{ if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();go();} }); });
+}
+
+document.getElementById("btn-clear").addEventListener("click",clearSel);
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") clearSel(); });
+let raf; const redraw=()=>{ cancelAnimationFrame(raf); raf=requestAnimationFrame(drawEdges); };
+window.addEventListener("resize",redraw);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
+new ResizeObserver(redraw).observe(map);
+
+// open on the fact table (or a #hash) so the page starts in a working state
+const fromHash = byTok[(location.hash||"").slice(1)];
+state.node = fromHash || "student_unit_load";
+drawEdges(); renderPanel();
+</script>
+</body>
+</html>

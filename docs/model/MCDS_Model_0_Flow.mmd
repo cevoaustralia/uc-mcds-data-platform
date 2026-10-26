@@ -1,0 +1,9 @@
+flowchart LR
+  classDef src fill:#FFF4E5,stroke:#C77700,color:#222
+  classDef mcds fill:#E7F0FF,stroke:#1D4ED8,color:#222
+  classDef gold fill:#E8F7EE,stroke:#15803D,color:#222
+  A["<b>Callista CSV extract</b><br/>7 tables, masked<br/>(landing)"]:::src --> B["<b>Bronze</b><br/>mcds_bronze<br/>same 7 tables, Parquet"]:::src
+  B --> C["<b>Silver = MCDS model</b><br/>mcds_silver<br/>student · unit_of_learning · location<br/>organisation · learning_period<br/>student_unit_load (fact)"]:::mcds
+  C --> D["<b>Gold = D5 student load</b><br/>mcds_gold<br/>by unit · by campus · by faculty<br/>unit × campus<br/>(headcount + EFTSL)"]:::gold
+  C --> E["<b>MCDS JSON</b><br/>validated vs<br/>studentlifecycle.schema.json"]:::mcds
+  D --> F["<b>MCDS Reporting Framework</b><br/>report definitions + fact data<br/>(validated)"]:::gold

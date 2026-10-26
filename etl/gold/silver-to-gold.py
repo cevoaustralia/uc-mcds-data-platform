@@ -1,196 +1,69 @@
 """
-Silver to Gold ETL Job
-Generate analytics reports from Silver MCDS data
+Glue job: silver-to-gold (SOW D5)
 
-Input: mcds_silver database tables
-Output: Gold aggregation reports (SOW D5 deliverables)
+Builds the Gold student-load reports defined in config/gold-aggregations.yaml from the Silver
+MCDS tables, registers them in the Glue Data Catalog, runs Gold reconciliation DQ rules and
+publishes the MCDS Reporting Framework artefacts (Report Definitions + Fact Data per period).
+
+Arguments: --SILVER_DATABASE --GOLD_BUCKET --GOLD_DATABASE [--CONFIG_PREFIX s3://...]
 """
 
 import sys
-from awsglue.transforms import *
-from awsglue.utils import getResolvedOptions
-from pyspark.context import SparkContext
+
+import boto3
 from awsglue.context import GlueContext
 from awsglue.job import Job
-from pyspark.sql.functions import (
-    col, count, countDistinct, sum as _sum, avg, current_timestamp
-)
+from pyspark.context import SparkContext
 
-# Job parameters
-args = getResolvedOptions(sys.argv, [
-    'JOB_NAME',
-    'INPUT_DATABASE',
-    'OUTPUT_BUCKET',
-    'OUTPUT_DATABASE'
-])
+import data_quality as DQ
+import glue_io as G
+import pipeline as P
 
-# Initialize contexts
+args = G.job_args(["SILVER_DATABASE", "GOLD_BUCKET", "GOLD_DATABASE"], {"CONFIG_PREFIX": ""})
 sc = SparkContext()
-glueContext = GlueContext(sc)
-spark = glueContext.spark_session
-job = Job(glueContext)
-job.init(args['JOB_NAME'], args)
+glue = GlueContext(sc)
+spark = glue.spark_session
+job = Job(glue)
+job.init(args["JOB_NAME"], args)
 
-# Configuration
-INPUT_DATABASE = args['INPUT_DATABASE']
-OUTPUT_BUCKET = args['OUTPUT_BUCKET']
-OUTPUT_DATABASE = args['OUTPUT_DATABASE']
+cfg = G.load_configs(args, {"rules": "business-rules.yaml", "gold": "gold-aggregations.yaml",
+                            "dq": "data-quality-rules.yaml"})
+rules, gold_cfg = cfg["rules"], cfg["gold"]
 
-# PLACEHOLDER values from business-rules.yaml
-ACTIVE_STATUS_CODES = [1, 2]  # Mock: 1=ENROLLED, 2=CONTINUING (real codes TBD)
-CURRENT_SEMESTER = '2024-S1'  # Mock semester (real current semester TBD)
+silver = {name: spark.table(f"{args['SILVER_DATABASE']}.{name}") for name in P.SILVER_ENTITIES}
+extract_date = spark.sql(f"SHOW TBLPROPERTIES {args['SILVER_DATABASE']}.student_unit_load('extract_date')").first()[1]
+gold = P.build_gold(spark, silver, gold_cfg, rules)
 
+gold_rows = {}
+for name, df in gold.items():
+    rep = gold_cfg["reports"][name]
+    comments = {c: f"Dimension: {e}" for c, e in rep["dimensions"].items()}
+    comments.update({c: f"Attribute: {e}" for c, e in rep.get("attributes", {}).items()})
+    comments.update({c: f"Measure: {e} FROM silver_mcds.student_unit_load" for c, e in rep["measures"].items()})
+    comments.update({c: f"Derived: {e}" for c, e in (rep.get("derived") or {}).items()})
+    n = G.write_catalog_table(
+        spark, df, args["GOLD_DATABASE"], name, f"s3://{args['GOLD_BUCKET']}/analytics/{name}/",
+        description=f"Gold (SOW D5): {rep['description']}",
+        properties={"layer": "gold", "source": "silver student_unit_load + dimensions",
+                    "filter": P.resolve_tokens(gold_cfg["common_filter"], rules),
+                    "extract_date": extract_date, "contains_pii": "false", "classification": "internal"},
+        column_comments=comments)
+    tbl = spark.table(f"{args['GOLD_DATABASE']}.{name}")
+    tbl.createOrReplaceTempView(f"gold_{name}")
+    gold_rows[name] = tbl.collect()
+    print(f"gold.{name}: {n} rows")
 
-def generate_student_load_by_unit(load_df, unit_df):
-    """
-    Report 1: Student load by unit (SOW D5.1)
-    
-    PLACEHOLDER: Uses COUNT(DISTINCT studentId) - confirm with UC (headcount vs EFTSU sum)
-    PLACEHOLDER: Filters by active status codes and current semester from business-rules.yaml
-    """
-    print("\nGenerating Report 1: Student load by unit")
-    
-    # Filter active enrolments in current semester
-    filtered_df = load_df.filter(
-        (col("status").isin(ACTIVE_STATUS_CODES)) &
-        (col("semester") == CURRENT_SEMESTER)
-    )
-    
-    # Join with unit dimension
-    joined_df = filtered_df.join(unit_df, "unitCode", "left")
-    
-    # Aggregate
-    report_df = joined_df.groupBy("unitCode", "unitName", "semester").agg(
-        countDistinct("studentId").alias("student_count"),
-        _sum("eftsu").alias("total_eftsu"),
-        avg("eftsu").alias("avg_eftsu_per_student")
-    ).withColumn(
-        "report_generated_at", current_timestamp()
-    ).orderBy(
-        col("student_count").desc()
-    )
-    
-    return report_df
+P.register_views(silver, "silver")
+results = DQ.run_rules(spark, cfg["dq"], rules, {"gold"})
+summary = DQ.print_results(results, "GOLD DATA QUALITY")
 
+definitions, factdata = P.mcds_reporting_artefacts(gold_rows, gold_cfg, rules, as_of_date=extract_date)
+s3 = boto3.client("s3")
+for folder, items in (("reportdefinitions", definitions), ("factdata", factdata)):
+    for fname, obj in items:
+        s3.put_object(Bucket=args["GOLD_BUCKET"], Key=f"mcds_reporting/{extract_date}/{folder}/{fname}",
+                      Body=P.to_json(obj).encode("utf-8"), ContentType="application/json")
 
-def generate_student_load_by_facility(load_df, location_df):
-    """
-    Report 2: Student load by facility (SOW D5.2)
-    
-    PLACEHOLDER: Uses COUNT(DISTINCT studentId) - confirm with UC
-    PLACEHOLDER: Filters by active status codes and current semester
-    PLACEHOLDER: facility field (locationCode) from business-rules.yaml
-    """
-    print("\nGenerating Report 2: Student load by facility")
-    
-    # Filter active enrolments in current semester
-    filtered_df = load_df.filter(
-        (col("status").isin(ACTIVE_STATUS_CODES)) &
-        (col("semester") == CURRENT_SEMESTER)
-    )
-    
-    # Join with location dimension
-    joined_df = filtered_df.join(location_df, "locationCode", "left")
-    
-    # Aggregate
-    report_df = joined_df.groupBy("locationCode", "locationName", "semester").agg(
-        countDistinct("studentId").alias("student_count"),
-        _sum("eftsu").alias("total_eftsu"),
-        countDistinct("unitCode").alias("unit_count")
-    ).withColumn(
-        "report_generated_at", current_timestamp()
-    ).orderBy(
-        col("student_count").desc()
-    )
-    
-    return report_df
-
-
-def write_gold_table(df, report_name, output_path):
-    """Write DataFrame to Gold layer as Parquet"""
-    print(f"Writing {report_name} to Gold: {output_path}")
-    
-    df.write \
-        .mode("overwrite") \
-        .format("parquet") \
-        .option("compression", "snappy") \
-        .save(output_path)
-    
-    row_count = df.count()
-    print(f"  ✓ Wrote {row_count} rows")
-    
-    # Show sample
-    print(f"  Sample data:")
-    df.show(5, truncate=False)
-    
-    return row_count
-
-
-def register_gold_table(spark, report_name, output_path):
-    """Register Parquet table in Glue Catalog"""
-    print(f"Registering table: {OUTPUT_DATABASE}.{report_name}")
-    
-    spark.sql(f"""
-        CREATE TABLE IF NOT EXISTS {OUTPUT_DATABASE}.{report_name}
-        USING parquet
-        LOCATION '{output_path}'
-    """)
-    
-    print(f"  ✓ Table registered")
-
-
-def main():
-    """Main ETL execution"""
-    print("="*60)
-    print("SILVER TO GOLD ETL JOB")
-    print("="*60)
-    print(f"Input Database: {INPUT_DATABASE}")
-    print(f"Output Bucket: {OUTPUT_BUCKET}")
-    print(f"Output Database: {OUTPUT_DATABASE}")
-    print(f"Active Status Codes (PLACEHOLDER): {ACTIVE_STATUS_CODES}")
-    print(f"Current Semester (PLACEHOLDER): {CURRENT_SEMESTER}")
-    print("="*60)
-    
-    # Read Silver tables
-    print("\nReading Silver tables...")
-    student_df = spark.table(f"{INPUT_DATABASE}.student")
-    unit_df = spark.table(f"{INPUT_DATABASE}.unit_of_learning")
-    location_df = spark.table(f"{INPUT_DATABASE}.location")
-    load_df = spark.table(f"{INPUT_DATABASE}.student_unit_load")
-    
-    print(f"  ✓ student: {student_df.count()} rows")
-    print(f"  ✓ unit_of_learning: {unit_df.count()} rows")
-    print(f"  ✓ location: {location_df.count()} rows")
-    print(f"  ✓ student_unit_load: {load_df.count()} rows")
-    
-    # Generate reports
-    print("\nGenerating Gold reports...")
-    
-    report1_df = generate_student_load_by_unit(load_df, unit_df)
-    report2_df = generate_student_load_by_facility(load_df, location_df)
-    
-    # Write to Gold
-    print("\nWriting to Gold layer...")
-    
-    write_gold_table(report1_df, "student_load_by_unit", 
-                    f"s3://{OUTPUT_BUCKET}/analytics/student_load_by_unit/")
-    register_gold_table(spark, "student_load_by_unit", 
-                       f"s3://{OUTPUT_BUCKET}/analytics/student_load_by_unit/")
-    
-    write_gold_table(report2_df, "student_load_by_facility", 
-                    f"s3://{OUTPUT_BUCKET}/analytics/student_load_by_facility/")
-    register_gold_table(spark, "student_load_by_facility", 
-                       f"s3://{OUTPUT_BUCKET}/analytics/student_load_by_facility/")
-    
-    print("\n✓ SUCCESS - Silver to Gold transformation complete")
-    print("="*60)
-    print("\nSOW D5 Deliverables:")
-    print("  ✓ D5.1: Student load by unit report generated")
-    print("  ✓ D5.2: Student load by facility report generated")
-    print("="*60)
-    
-    job.commit()
-
-
-if __name__ == "__main__":
-    main()
+job.commit()
+if not summary["ok"]:
+    sys.exit(1)

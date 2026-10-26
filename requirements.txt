@@ -1,26 +1,8 @@
-# Python Dependencies
-# Python 3.9+
-
-# AWS SDK
-boto3==1.34.0
-
-# Glue/PySpark (local testing)
-pyspark==3.5.0
-
-# MCDS Schema Validation
-jsonschema==4.20.0
-
-# Data Manipulation
-pandas==2.1.4
-pyarrow==14.0.1
-
-# Mock Data Generation
-faker==22.0.0
-
-# Testing
-pytest==7.4.3
-pytest-cov==4.1.0
-moto==4.2.9
-
-# Utilities
-python-dateutil==2.8.2
+# Local development / CI (AWS Glue 4.0 provides Spark 3.3 + boto3 at runtime)
+pyspark>=3.3,<4.1        # local runner + integration test (needs Java 17+)
+pyyaml>=6.0
+jsonschema>=4.20         # MCDS conformance validation
+referencing>=0.30
+pandas>=2.0              # unit tests
+pytest>=7.4
+boto3>=1.34              # Glue jobs (S3 config/exports)
