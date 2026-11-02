@@ -1,0 +1,136 @@
+# ---------------------------------------------------------------------------------------------
+# MDAA deployment template (MDAA 1.9.0). DO NOT put account details here.
+# scripts/render_mdaa.py --env <name> renders this into ./mdaa.yaml using config/environments/<name>.yaml:
+#   dollar-brace tokens  replaced from the environment file (e.g. organization, aws.region)
+#   x-feature: <f>    module (or a module_configs entry {file, x-feature}) kept only when features.<f> is true;
+#                     a list means all listed features must be true. MDAA deep-merges module_configs in order.
+#   account_level_settings: false in a SHARED account (e.g. Cevo) - skips modules that change account-wide
+#                     settings (Lake Formation, Glue Catalog encryption, CloudTrail, Bedrock logging).
+# Module configs are under infra/<domain>/ and use MDAA references only ({{org}}, ssm:/..., {{context:..}}).
+#
+# Domains
+#   shared       IAM roles, Glue Catalog encryption, Lake Formation settings, audit (CloudTrail)   D1, D4
+#   datalake     KMS + S3 buckets (landing, bronze, silver, gold, artifacts), Athena workgroup    D1, D5
+#   dataops      Glue databases + LF grants, Glue jobs, Step Functions, Glue DQ rulesets           D2, D3, D4
+#   ai           Bedrock invocation logging (optional; the DQ advisor Lambda sits in dataops)
+#   consumption  QuickSight account, Athena data source, shared folders (optional)
+#   smus         SageMaker Unified Studio domain for lineage + notebooks (optional, off by default)
+# ---------------------------------------------------------------------------------------------
+# yaml-language-server: $schema=../node_modules/@aws-mdaa/schemas/@aws-mdaa/cli.json
+mdaa_version: "1.9.0"
+organization: "${organization}"
+region: "${aws.region}"
+
+tag_config_data: ${tags}
+
+context:
+  notification_email: "${notification_email}"
+  qs_identity_region: "${quicksight.identity_region}"
+  qs_readers_group: "${quicksight.readers_group}"
+  qs_authors_group: "${quicksight.authors_group}"
+  qs_vpc_id: "${quicksight.vpc_id}"
+  qs_subnet_id1: "${quicksight.subnet_id1}"
+  qs_subnet_id2: "${quicksight.subnet_id2}"
+  bedrock_model_id: "${bedrock.model_id}"
+  smus_vpc_id: "${smus.vpc_id}"
+  smus_subnet_id1: "${smus.subnet_id1}"
+  smus_subnet_id2: "${smus.subnet_id2}"
+  smus_data_team_sso_group_id: "${smus.data_team_sso_group_id}"
+
+domains:
+  shared:
+    environments:
+      ${environment}:
+        account: "${aws.account_id}"
+        modules:
+          roles:
+            module_path: "@aws-mdaa/roles"
+            module_configs: [./infra/governance/roles.yaml]
+          glue-catalog:
+            x-feature: account_level_settings
+            module_path: "@aws-mdaa/glue-catalog"
+            module_configs: [./infra/governance/glue-catalog.yaml]
+          lakeformation-settings:
+            x-feature: account_level_settings
+            module_path: "@aws-mdaa/lakeformation-settings"
+            module_configs: [./infra/governance/lakeformation-settings.yaml]
+          audit:
+            x-feature: account_level_settings
+            module_path: "@aws-mdaa/audit"
+            module_configs: [./infra/governance/audit.yaml]
+          audit-trail:
+            x-feature: account_level_settings
+            module_path: "@aws-mdaa/audit-trail"
+            module_configs: [./infra/governance/audit-trail.yaml]
+
+  datalake:
+    environments:
+      ${environment}:
+        account: "${aws.account_id}"
+        modules:
+          datalake:
+            module_path: "@aws-mdaa/datalake"
+            module_configs: [./infra/data/datalake.yaml]
+          athena:
+            module_path: "@aws-mdaa/athena-workgroup"
+            module_configs: [./infra/data/athena-workgroup.yaml]
+
+  dataops:
+    environments:
+      ${environment}:
+        account: "${aws.account_id}"
+        modules:
+          project:
+            module_path: "@aws-mdaa/dataops-project"
+            module_configs:
+              - ./infra/dataops/project.yaml
+              - {file: ./infra/dataops/project-catalog-kms.yaml, x-feature: account_level_settings}
+          jobs:
+            module_path: "@aws-mdaa/dataops-job"
+            module_configs: [./infra/dataops/jobs.yaml]
+          orchestration:
+            module_path: "@aws-mdaa/dataops-stepfunction"
+            module_configs: [./infra/dataops/stepfunction.yaml]
+          data-quality:
+            # Glue DQ rulesets target tables created by the first pipeline run: enable after it
+            x-feature: glue_dq_rulesets
+            module_path: "@aws-mdaa/dataops-data-quality"
+            module_configs: [./infra/dataops/data-quality.yaml]
+          dq-advisor:
+            x-feature: bedrock_advisor
+            module_path: "@aws-mdaa/dataops-lambda"
+            module_configs: [./infra/dataops/dq-advisor-lambda.yaml]
+
+  ai:
+    environments:
+      ${environment}:
+        account: "${aws.account_id}"
+        modules:
+          bedrock-settings:
+            x-feature: [bedrock_advisor, account_level_settings]
+            module_path: "@aws-mdaa/bedrock-settings"
+            module_configs: [./infra/ai/bedrock-settings.yaml]
+
+  consumption:
+    environments:
+      ${environment}:
+        account: "${aws.account_id}"
+        modules:
+          quicksight-account:
+            x-feature: quicksight_account_subscription
+            module_path: "@aws-mdaa/quicksight-account"
+            module_configs: [./infra/consumption/quicksight-account.yaml]
+          quicksight-project:
+            x-feature: quicksight
+            module_path: "@aws-mdaa/quicksight-project"
+            module_configs: [./infra/consumption/quicksight-project.yaml]
+
+  smus:
+    environments:
+      ${environment}:
+        account: "${aws.account_id}"
+        modules:
+          sagemaker-unified-studio:
+            x-feature: smus
+            module_path: "@aws-mdaa/sagemaker"
+            module_configs: [./infra/smus/domain.yaml]

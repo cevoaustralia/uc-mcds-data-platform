@@ -1,0 +1,65 @@
+# DataOps project: Glue databases per layer with Lake Formation grants (D3, D4).
+# Database names must match pipeline/pipeline.yaml layers.
+dataAdminRoles:
+  - id: ssm:/{{org}}/shared/generated-role/data-admin/id
+dataEngineerRoles:
+  - id: ssm:/{{org}}/shared/generated-role/data-engineer/id
+projectExecutionRoles:
+  - id: ssm:/{{org}}/shared/generated-role/glue-etl/id
+s3OutputKmsKeyArn: ssm:/{{org}}/datalake/datalake/kms/arn
+databases:
+  mcds_bronze:
+    description: "Bronze - Callista tables as extracted (typed Parquet), one partition per extract"
+    verbatimName: true
+    locationBucketName: ssm:/{{org}}/datalake/datalake/bucket/bronze/name
+    locationPrefix: callista
+    lakeFormation:
+      createSuperGrantsForDataAdminRoles: true
+      createReadGrantsForDataEngineerRoles: true
+      createReadWriteGrantsForProjectExecutionRoles: true
+  mcds_silver:
+    description: "Silver - MCDS v2.1.1 entities (person, student, organisation, location, learning period, unit, availability, enrolments)"
+    verbatimName: true
+    locationBucketName: ssm:/{{org}}/datalake/datalake/bucket/silver/name
+    locationPrefix: mcds
+    lakeFormation:
+      createSuperGrantsForDataAdminRoles: true
+      createReadGrantsForDataEngineerRoles: true
+      createReadWriteGrantsForProjectExecutionRoles: true
+  mcds_gold:
+    description: "Gold - curated student load (use case A) and course enrolment (use case B) datasets"
+    verbatimName: true
+    locationBucketName: ssm:/{{org}}/datalake/datalake/bucket/gold/name
+    locationPrefix: analytics
+    lakeFormation:
+      createSuperGrantsForDataAdminRoles: true
+      createReadGrantsForDataEngineerRoles: true
+      createReadWriteGrantsForProjectExecutionRoles: true
+      grants:
+        analyst-read:
+          databasePermissions: read
+          tablePermissions: read
+          principals:
+            data-analyst:
+              role:
+                id: ssm:/{{org}}/shared/generated-role/data-analyst/id
+  mcds_ops:
+    description: "Ops - pipeline runs, row counts, data quality and MCDS validation results (monitoring dashboards)"
+    verbatimName: true
+    locationBucketName: ssm:/{{org}}/datalake/datalake/bucket/gold/name
+    locationPrefix: ops
+    lakeFormation:
+      createSuperGrantsForDataAdminRoles: true
+      createReadGrantsForDataEngineerRoles: true
+      createReadWriteGrantsForProjectExecutionRoles: true
+      grants:
+        monitoring-read:
+          databasePermissions: read
+          tablePermissions: read
+          principals:
+            data-analyst:
+              role:
+                id: ssm:/{{org}}/shared/generated-role/data-analyst/id
+            dq-advisor:
+              role:
+                id: ssm:/{{org}}/shared/generated-role/dq-advisor/id

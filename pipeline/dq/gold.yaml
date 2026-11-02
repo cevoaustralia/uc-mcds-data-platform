@@ -1,0 +1,23 @@
+rules:
+  - id: gold_fact_no_fanout
+    severity: fail
+    description: "Gold fact has exactly one row per Silver unit enrolment (no join fan-out)"
+    sql: "SELECT abs((SELECT COUNT(*) FROM gold.fact_student_load) - (SELECT COUNT(*) FROM silver.unit_of_learning_enrolment))"
+  - id: gold_unit_campus_total_reconciles
+    severity: fail
+    description: "Unit x campus EFTSL total equals in-scope EFTSL in the fact (to 0.001)"
+    sql: >-
+      SELECT CASE WHEN abs(
+        (SELECT COALESCE(SUM(eftsl),0) FROM gold.student_load_by_unit_campus) -
+        (SELECT COALESCE(SUM(eftsl),0) FROM gold.fact_student_load WHERE counts_as_load AND cohort IN (${rules.load.load_cohorts_in_scope}))
+      ) > 0.001 THEN 1 ELSE 0 END
+  - id: gold_school_split_conserves_load
+    severity: fail
+    description: "School split EFTSL equals faculty EFTSL (teaching split conserves total load, to 0.01)"
+    sql: >-
+      SELECT CASE WHEN abs((SELECT COALESCE(SUM(eftsl),0) FROM gold.student_load_by_school) -
+                           (SELECT COALESCE(SUM(eftsl),0) FROM gold.student_load_by_faculty)) > 0.01 THEN 1 ELSE 0 END
+  - id: gold_unit_not_faculty_owned
+    severity: warn
+    description: "In-scope load on units whose owner is not a faculty (FCY-*) - reported under their owning org unit"
+    sql: "SELECT COUNT(*) FROM gold.student_load_by_faculty WHERE owner_faculty_code NOT LIKE 'FCY-%'"

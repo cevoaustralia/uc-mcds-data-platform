@@ -1,6 +1,0 @@
-# @aws-mdaa/lakeformation-settings - Lake Formation permission model (SOW D4)
-lakeFormationAdminRoles:
-  - id: generated-role-id:data-admin
-# false = new databases/tables are governed by Lake Formation grants, not IAM-only access
-iamAllowedPrincipalsDefault: false
-createCdkLFAdmin: true

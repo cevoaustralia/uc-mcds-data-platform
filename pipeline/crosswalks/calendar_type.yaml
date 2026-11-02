@@ -1,0 +1,135 @@
+# Code crosswalk - registered as view xw_calendar_type(source_code, learning_period_type, cohort)
+name: calendar_type
+description: Callista teaching calendar type -> MCDS learningPeriodType and reporting cohort. Cohort drives load scope (rules.load.load_cohorts_in_scope).
+  Unlisted calendar types map to cohort UNMAPPED and are reported by DQ rule silver_calendar_type_mapped.
+confirmed: false
+columns:
+- learning_period_type
+- cohort
+rows:
+  SEM-1:
+    learning_period_type: Semester
+    cohort: HE_COURSEWORK
+  SEM-2:
+    learning_period_type: Semester
+    cohort: HE_COURSEWORK
+  COLTR1:
+    learning_period_type: Trimester
+    cohort: HE_COURSEWORK
+  COLTR2:
+    learning_period_type: Trimester
+    cohort: HE_COURSEWORK
+  COLTR3:
+    learning_period_type: Trimester
+    cohort: HE_COURSEWORK
+  MBA-TR1:
+    learning_period_type: Trimester
+    cohort: HE_COURSEWORK
+  UC-TRI-1:
+    learning_period_type: Trimester
+    cohort: HE_COURSEWORK
+  UC-SB-1:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-SB-2:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-SB-3:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-SB-4:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-SB-5:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-SB-6:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-SBEXT-1:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-SBEXT-3:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-SBEXT-4:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-PRD-1:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-PRD-2:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-PRD-3:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-PRD-4:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  UC-PRD-5:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  PHY-BLK-1:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  PHY-BLK-2:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  PHY-BLK-3:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  PHY-BLK-4:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  PHY-BLK-5:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  PHY-BLK-6:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  OTPP-2:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  OTPP-3:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  OTPP-4:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  OTPP-5:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  PRAC-1:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  PRAC-6:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  PRAC-7:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  PRAC-10:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  PRAC-11:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  VTP-1:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  WINTER:
+    learning_period_type: Term
+    cohort: HE_COURSEWORK
+  RES-1:
+    learning_period_type: Semester
+    cohort: HDR
+  RES-2:
+    learning_period_type: Semester
+    cohort: HDR
+  ELICOS-1:
+    learning_period_type: Term
+    cohort: ELICOS
+  ELICOS-2:
+    learning_period_type: Term
+    cohort: ELICOS

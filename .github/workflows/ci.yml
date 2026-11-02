@@ -1,0 +1,36 @@
+# Runs on every push / PR: pipeline unit + end-to-end tests (synthetic data) and MDAA config validation.
+# No AWS credentials are used.
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: "17"}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -r requirements-dev.txt
+      - name: Pipeline tests (config-driven engine, synthetic extract)
+        run: python -m pytest -q tests
+  validate-infra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: npm ci
+      - run: pip install PyYAML==6.0.2 jsonschema==4.23.0
+      - name: Render mdaa.yaml (placeholders allowed) and validate every module config against MDAA schemas
+        run: |
+          for f in config/environments/*.yaml; do
+            env=$(basename "$f" .yaml)
+            MDAA_FEATURES_SMUS=true MDAA_FEATURES_GLUE_DQ_RULESETS=true MDAA_QUICKSIGHT_CREATE_ACCOUNT_SUBSCRIPTION=true \
+              python scripts/render_mdaa.py --env "$env" --allow-placeholders
+            python scripts/validate_infra.py
+          done

@@ -1,0 +1,16 @@
+# SageMaker Unified Studio domain (optional, features.smus). Gives a lineage graph and notebooks over the
+# Glue catalog for the SageMaker demo. Needs a VPC + IAM Identity Center group (config/environments/<env>.yaml).
+domains:
+  mcds:
+    description: "UC MCDS - SageMaker Unified Studio for lineage and notebook analysis"
+    userAssignment: MANUAL
+    dataAdminRole:
+      id: ssm:/{{org}}/shared/generated-role/data-admin/id
+    tooling:
+      vpcId: "{{context:smus_vpc_id}}"
+      subnetIds:
+        - "{{context:smus_subnet_id1}}"
+        - "{{context:smus_subnet_id2}}"
+    groups:
+      data-team:
+        ssoId: "{{context:smus_data_team_sso_group_id}}"

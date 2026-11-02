@@ -1,0 +1,13 @@
+# Code crosswalk - view xw_location_type(source_code, mcds_location_type)
+name: location_type
+description: 'Callista LOCATION_TYPE -> MCDS locationType (enum: Region, Campus, Building, Space, Virtual, Site...).'
+confirmed: false
+columns:
+- mcds_location_type
+rows:
+  CAMPUS:
+    mcds_location_type: Campus
+  GRAD:
+    mcds_location_type: Site
+  EXAM:
+    mcds_location_type: Site

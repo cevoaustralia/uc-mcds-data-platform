@@ -1,0 +1,8 @@
+# Glue Data Catalog encryption (account-level module: deploy once per account)
+accessPolicies:
+  ReadAccess:
+    resources: ["database/mcds_*", "table/mcds_*/*"]
+    readPrincipalArns:
+      - ssm:/{{org}}/shared/generated-role/data-admin/arn
+      - ssm:/{{org}}/shared/generated-role/data-engineer/arn
+      - ssm:/{{org}}/shared/generated-role/data-analyst/arn

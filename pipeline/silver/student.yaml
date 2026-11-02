@@ -1,0 +1,15 @@
+# MCDS student role (parties.schema.json#/$defs/student). A person with a course attempt gets a student role.
+entity: student
+description: "MCDS student - one row per person with a course attempt"
+mcds: {schema: parties.schema.json, definition: student, unique_ids_field: studentUniqueIDs}
+primary_key: [student_id]
+classification: confidential
+from: "silver.person p"
+where: "EXISTS (SELECT 1 FROM bronze.student_course_attempt sca WHERE CAST(sca.PERSON_ID AS STRING) = p.person_id)"
+columns:
+  student_id:     {expr: "p.person_id", mcds: studentID, source: "PERSON.PERSON_ID"}
+  person_id:      {expr: "p.person_id", mcds: personID, source: "PERSON.PERSON_ID"}
+  # CONFIRM WITH UC (OD-1): student-facing number; masked PERSON_ID used for the EBA
+  student_number: {expr: "p.person_id", mcds: studentNumber, source: "PERSON.PERSON_ID"}
+  last_name:      {expr: "p.last_name", mcds: studentName.lastName, pii: true, source: "PERSON.SURNAME"}
+  first_name:     {expr: "p.first_name", mcds: studentName.firstName, pii: true, source: "PERSON.GIVEN_NAMES"}

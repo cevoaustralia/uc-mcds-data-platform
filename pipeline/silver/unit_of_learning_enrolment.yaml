@@ -1,0 +1,66 @@
+# MCDS unitOfLearningEnrolment (student-management.schema.json) - a student's unit attempt, with student load.
+# EFTSL follows UC view UC_SUA_EFTSU_FULL_V (see pipeline/rules/load.yaml). Every row is kept; rows that do
+# not carry load have eftsl = 0 and a load_exclusion_reason, so exclusions are visible and reconcilable.
+entity: unit_of_learning_enrolment
+description: "MCDS unitOfLearningEnrolment - one row per Callista unit attempt, with EFTSL and load flags"
+mcds:
+  schema: student-management.schema.json
+  definition: unitOfLearningEnrolment
+  embed:
+    unitOfLearningAvailability: {entity: unit_of_learning_availability, key: unit_of_learning_availability_id}
+primary_key: [unit_of_learning_enrolment_id]
+classification: confidential
+from: "bronze.student_unit_attempt sua"
+joins:
+  - "LEFT JOIN bronze.student_course_attempt sca ON sca.PERSON_ID = sua.PERSON_ID AND sca.COURSE_CD = sua.COURSE_CD"
+  - "LEFT JOIN bronze.unit_version uv ON uv.UNIT_CD = sua.UNIT_CD AND uv.VERSION_NUMBER = sua.VERSION_NUMBER"
+  - "LEFT JOIN xw_calendar_type xct ON xct.source_code = sua.CAL_TYPE"
+  - "LEFT JOIN xw_unit_attempt_status xst ON xst.source_code = sua.UNIT_ATTEMPT_STATUS"
+derived:   # intermediate expressions, usable as ${d.<name>} in columns below
+  credit_points: "COALESCE(sua.OVERRIDE_ENROLLED_CP, uv.ENROLLED_CREDIT_POINTS)"
+  load_reason: >-
+    CASE
+      WHEN sca.PERSON_ID IS NULL THEN 'NO_COURSE_ATTEMPT'
+      WHEN sca.COURSE_ATTEMPT_STATUS IN (${rules.load.excluded_course_attempt_statuses}) THEN 'COURSE_UNCONFIRMED'
+      WHEN sua.UNIT_ATTEMPT_STATUS IN (${rules.load.load_unit_attempt_statuses}) THEN NULL
+      WHEN sua.UNIT_ATTEMPT_STATUS IN (${rules.load.discontinued_status})
+           AND sua.ADMINISTRATIVE_UNIT_STATUS IN (${rules.load.discontinued_load_admin_statuses}) THEN NULL
+      WHEN sua.UNIT_ATTEMPT_STATUS IN (${rules.load.discontinued_status}) THEN 'WITHDRAWN_BEFORE_CENSUS'
+      ELSE concat('STATUS_', sua.UNIT_ATTEMPT_STATUS)
+    END
+columns:
+  unit_of_learning_enrolment_id:   {expr: "concat(CAST(sua.PERSON_ID AS STRING), '|', sua.COURSE_CD, '|', CAST(sua.UOO_ID AS STRING))", mcds: unitOfLearningEnrolmentID, source: "STUDENT_UNIT_ATTEMPT.PERSON_ID + COURSE_CD + UOO_ID"}
+  student_id:                      {expr: "CAST(sua.PERSON_ID AS STRING)", mcds: studentID, source: "STUDENT_UNIT_ATTEMPT.PERSON_ID"}
+  programme_of_learning_enrolment_id: {expr: "concat(CAST(sua.PERSON_ID AS STRING), '|', sua.COURSE_CD)", mcds: programmeOfLearningEnrolmentID, source: "STUDENT_UNIT_ATTEMPT.PERSON_ID + COURSE_CD"}
+  unit_of_learning_availability_id: {expr: "CAST(sua.UOO_ID AS STRING)", source: "STUDENT_UNIT_ATTEMPT.UOO_ID"}
+  unit_of_learning_id:             {expr: "concat(sua.UNIT_CD, '.', CAST(sua.VERSION_NUMBER AS STRING))", source: "STUDENT_UNIT_ATTEMPT.UNIT_CD + VERSION_NUMBER"}
+  learning_period_id:              {expr: "concat(sua.CAL_TYPE, '|', CAST(sua.CI_SEQUENCE_NUMBER AS STRING))", source: "STUDENT_UNIT_ATTEMPT.CAL_TYPE + CI_SEQUENCE_NUMBER"}
+  location_id:                     {expr: "sua.LOCATION_CD", source: "STUDENT_UNIT_ATTEMPT.LOCATION_CD"}
+  course_code:                     {expr: "sua.COURSE_CD", source: "STUDENT_UNIT_ATTEMPT.COURSE_CD"}
+  status:                          {expr: "COALESCE(xst.mcds_status, sua.UNIT_ATTEMPT_STATUS)", mcds: status, source: "STUDENT_UNIT_ATTEMPT.UNIT_ATTEMPT_STATUS via xw_unit_attempt_status"}
+  callista_unit_attempt_status:    {expr: "sua.UNIT_ATTEMPT_STATUS", mcds: x-additional.callistaUnitAttemptStatus, source: "STUDENT_UNIT_ATTEMPT.UNIT_ATTEMPT_STATUS"}
+  administrative_unit_status:      {expr: "sua.ADMINISTRATIVE_UNIT_STATUS", mcds: x-additional.administrativeUnitStatus, source: "STUDENT_UNIT_ATTEMPT.ADMINISTRATIVE_UNIT_STATUS"}
+  status_date:                     {expr: "COALESCE(sua.DISCONTINUED_DT, sua.ENROLLED_DT)", mcds: statusDate, source: "STUDENT_UNIT_ATTEMPT.DISCONTINUED_DT / ENROLLED_DT"}
+  enrolled_date:                   {expr: "sua.ENROLLED_DT", source: "STUDENT_UNIT_ATTEMPT.ENROLLED_DT"}
+  discontinued_date:               {expr: "sua.DISCONTINUED_DT", source: "STUDENT_UNIT_ATTEMPT.DISCONTINUED_DT"}
+  course_attempt_status:           {expr: "sca.COURSE_ATTEMPT_STATUS", source: "STUDENT_COURSE_ATTEMPT.COURSE_ATTEMPT_STATUS"}
+  cohort:                          {expr: "COALESCE(xct.cohort, 'UNMAPPED')", mcds: x-additional.cohort, source: "STUDENT_UNIT_ATTEMPT.CAL_TYPE via xw_calendar_type"}
+  credit_points:                   {expr: "${d.credit_points}", mcds: x-additional.enrolledCreditPoints, source: "COALESCE(STUDENT_UNIT_ATTEMPT.OVERRIDE_ENROLLED_CP, UNIT_VERSION.ENROLLED_CREDIT_POINTS)"}
+  override_eftsu:                  {expr: "sua.OVERRIDE_EFTSU", source: "STUDENT_UNIT_ATTEMPT.OVERRIDE_EFTSU"}
+  counts_as_load:                  {expr: "${d.load_reason} IS NULL", mcds: x-additional.countsAsLoad, source: "rules.load (status, census, course status)"}
+  load_exclusion_reason:           {expr: "${d.load_reason}", mcds: x-additional.loadExclusionReason, source: "rules.load"}
+  eftsl:
+    expr: >-
+      CASE WHEN ${d.load_reason} IS NULL THEN
+        CAST(floor(COALESCE(sua.OVERRIDE_EFTSU, ${d.credit_points} / ${rules.load.standard_annual_load_cp})
+                   * power(10, ${rules.load.eftsu_truncate_decimals})) / power(10, ${rules.load.eftsu_truncate_decimals}) AS DECIMAL(12,3))
+      ELSE CAST(0 AS DECIMAL(12,3)) END
+    mcds: x-additional.eftsl
+    source: "TRUNC(NVL(OVERRIDE_EFTSU, credit_points / rules.load.standard_annual_load_cp), 3) when load incurred, else 0"
+foreign_keys:
+  student_id: student.student_id
+  programme_of_learning_enrolment_id: programme_of_learning_enrolment.programme_of_learning_enrolment_id
+  unit_of_learning_availability_id: unit_of_learning_availability.unit_of_learning_availability_id
+  unit_of_learning_id: unit_of_learning.unit_of_learning_id
+  learning_period_id: learning_period.learning_period_id
+  location_id: location.location_id

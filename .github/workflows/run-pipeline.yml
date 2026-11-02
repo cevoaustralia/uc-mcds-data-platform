@@ -1,0 +1,50 @@
+# Run the pipeline for one Callista extract already in the landing bucket
+# (s3://<landing>/callista/extract_date=YYYY-MM-DD/*.csv). Looks up the state machine and (optional)
+# Bedrock advisor by name in the target account - nothing account-specific in the repo.
+name: run-pipeline
+on:
+  workflow_dispatch:
+    inputs:
+      environment: {required: true, default: cevo-aws-mcds}
+      extract_date: {description: "YYYY-MM-DD (blank = latest in landing)", required: false, default: ""}
+      run_advisor: {description: "run the Bedrock DQ advisor after Gold", type: boolean, default: false}
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      ENV_NAME: ${{ inputs.environment }}
+      MDAA_AWS_REGION: ${{ vars.MDAA_AWS_REGION }}
+      MDAA_AWS_DEPLOY_ROLE_ARN: ${{ vars.MDAA_AWS_DEPLOY_ROLE_ARN }}
+      MDAA_ORGANIZATION: ${{ vars.MDAA_ORGANIZATION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install PyYAML==6.0.2
+      - run: |
+          echo "AWS_REGION=$(python scripts/env_value.py --env "$ENV_NAME" aws.region)" >> "$GITHUB_ENV"
+          echo "ROLE_ARN=$(python scripts/env_value.py --env "$ENV_NAME" aws.deploy_role_arn)" >> "$GITHUB_ENV"
+          echo "ORG=$(python scripts/env_value.py --env "$ENV_NAME" organization)" >> "$GITHUB_ENV"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: {role-to-assume: "${{ env.ROLE_ARN }}", aws-region: "${{ env.AWS_REGION }}"}
+      - name: Start the Step Function and wait
+        run: |
+          SM=$(aws stepfunctions list-state-machines --query "stateMachines[?contains(name, '$ORG') && contains(name, 'mcds-pipeline')].stateMachineArn | [0]" --output text)
+          [ "$SM" = "None" ] && { echo "state machine not found - deploy first"; exit 1; }
+          ADV=""
+          if [ "${{ inputs.run_advisor }}" = "true" ]; then
+            ADV=$(aws lambda list-functions --query "Functions[?contains(FunctionName, '$ORG') && contains(FunctionName, 'dq-advisor')].FunctionName | [0]" --output text)
+          fi
+          INPUT=$(python -c "import json,sys; print(json.dumps({'extract_date': sys.argv[1], 'run_advisor': sys.argv[2]=='true' and sys.argv[3] not in ('', 'None'), 'advisor_function': sys.argv[3]}))" \
+                  "${{ inputs.extract_date }}" "${{ inputs.run_advisor }}" "$ADV")
+          EX=$(aws stepfunctions start-execution --state-machine-arn "$SM" --input "$INPUT" --query executionArn --output text)
+          echo "execution: $EX"
+          while true; do
+            ST=$(aws stepfunctions describe-execution --execution-arn "$EX" --query status --output text)
+            echo "status: $ST"; [ "$ST" != "RUNNING" ] && break; sleep 30
+          done
+          [ "$ST" = "SUCCEEDED" ]

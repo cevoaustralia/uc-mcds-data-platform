@@ -1,5 +1,13 @@
-# MCDS reference package - licensed, never check in
+# MCDS reference package and compiled bundle - licensed, never check in
 MCDS - v2.1.1/
+mcds/
+
+# Source extracts (row-level student data) - never check in
+data/landing/
+
+# Generated MDAA deployment file (rendered per environment by scripts/render_mdaa.py) and MDAA work dirs
+mdaa.yaml
+mdaa_working/
 
 # Local working notes / agent state (not deliverables)
 analysis/
@@ -7,7 +15,7 @@ analysis/
 .kiro-analysis/
 **/.kiro-analysis/
 
-# Generated data (regenerate with scripts/generate-mock-data.py and run-local-pipeline.py)
+# Local pipeline output (scripts/run_local.py)
 data/mock/
 .local-lake/
 spark-warehouse/

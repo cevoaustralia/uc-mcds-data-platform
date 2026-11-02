@@ -1,0 +1,41 @@
+# Gold detail dataset (one row per unit enrolment) with all reporting dimensions denormalised.
+# Base for ad-hoc Athena / QuickSight / SageMaker analysis of use case A. Contains no names or PII.
+report: fact_student_load
+use_case: A
+description: "Student load detail: one row per unit enrolment with unit, faculty, campus, period, cohort and EFTSL"
+type: detail
+from: "silver.unit_of_learning_enrolment f"
+joins:
+  - "LEFT JOIN silver.unit_of_learning u ON u.unit_of_learning_id = f.unit_of_learning_id"
+  - "LEFT JOIN silver.learning_period p ON p.learning_period_id = f.learning_period_id"
+  - "LEFT JOIN silver.location l ON l.location_id = f.location_id"
+  - "LEFT JOIN silver.programme_of_learning_enrolment c ON c.programme_of_learning_enrolment_id = f.programme_of_learning_enrolment_id"
+columns:
+  unit_of_learning_enrolment_id: "f.unit_of_learning_enrolment_id"
+  student_id: "f.student_id"
+  academic_year: "p.academic_year"
+  learning_period_id: "f.learning_period_id"
+  calendar_type: "p.calendar_type"
+  learning_period_type: "p.learning_period_type"
+  period_start_date: "p.start_date"
+  period_end_date: "p.end_date"
+  unit_code: "u.unit_code"
+  unit_version: "u.unit_version"
+  unit_name: "u.unit_name"
+  unit_level: "u.unit_level"
+  owner_faculty_code: "u.owner_faculty_code"
+  owner_faculty_name: "u.owner_faculty_name"
+  location_id: "f.location_id"
+  location_name: "l.location_name"
+  delivery: "l.delivery"
+  course_code: "f.course_code"
+  attendance_type: "c.attendance_type"
+  fee_category: "c.fee_category"
+  is_commencing: "c.commencement_year = p.academic_year"
+  cohort: "f.cohort"
+  callista_unit_attempt_status: "f.callista_unit_attempt_status"
+  administrative_unit_status: "f.administrative_unit_status"
+  counts_as_load: "f.counts_as_load"
+  load_exclusion_reason: "f.load_exclusion_reason"
+  credit_points: "f.credit_points"
+  eftsl: "f.eftsl"

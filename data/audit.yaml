@@ -1,3 +1,0 @@
-# @aws-mdaa/audit - KMS-encrypted audit bucket for CloudTrail logs (SOW D1, D4)
-readRoles:
-  - id: generated-role-id:data-admin

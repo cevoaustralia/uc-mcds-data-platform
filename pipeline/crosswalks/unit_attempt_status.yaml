@@ -1,0 +1,20 @@
+# Code crosswalk - view xw_unit_attempt_status(source_code, mcds_status)
+name: unit_attempt_status
+description: Callista UNIT_ATTEMPT_STATUS -> MCDS unitOfLearningEnrolment.status (free text in MCDS v2.1.1; no allowed values
+  defined).
+confirmed: false
+columns:
+- mcds_status
+rows:
+  ENROLLED:
+    mcds_status: Enrolled
+  COMPLETED:
+    mcds_status: Completed
+  DISCONTIN:
+    mcds_status: Withdrawn
+  INVALID:
+    mcds_status: Invalid
+  DUPLICATE:
+    mcds_status: Duplicate
+  UNCONFIRM:
+    mcds_status: Unconfirmed

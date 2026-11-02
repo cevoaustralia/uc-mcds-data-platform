@@ -1,0 +1,64 @@
+# ---------------------------------------------------------------------------------------------
+# Optional, one-time per account (account administrator): cost and tagging guardrails for the MCDS
+# deployment, scoped by the `project` tag so it is isolated from other workloads in a shared account.
+#   aws cloudformation deploy --template-file bootstrap/cost-and-tag-guardrails.yaml \
+#     --stack-name uc-mcds-guardrails --parameter-overrides MonthlyBudgetUsd=<AMOUNT> AlertEmail=<EMAIL>
+# Prerequisite for the tag-scoped budget/monitor: activate tag key `project` (and environment, owner,
+# cost-centre) as cost allocation tags in Billing > Cost allocation tags (takes up to 24h to apply).
+# ---------------------------------------------------------------------------------------------
+AWSTemplateFormatVersion: "2010-09-09"
+Description: UC MCDS cost and tagging guardrails (budget, anomaly detection, required-tags rule)
+Parameters:
+  ProjectTag: {Type: String, Default: uc-mcds}
+  MonthlyBudgetUsd: {Type: Number, Description: "Monthly cost budget for resources tagged project=<ProjectTag>"}
+  AlertEmail: {Type: String}
+  AnomalyThresholdUsd: {Type: Number, Default: 10}
+  EnableRequiredTagsRule:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: "AWS Config rule; needs an existing Config recorder in the account/region"
+Conditions:
+  ConfigRule: !Equals [!Ref EnableRequiredTagsRule, "true"]
+Resources:
+  ProjectBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Sub "${ProjectTag}-monthly"
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit: {Amount: !Ref MonthlyBudgetUsd, Unit: USD}
+        CostFilters:
+          TagKeyValue: [!Sub "user:project$${ProjectTag}"]
+      NotificationsWithSubscribers:
+        - Notification: {NotificationType: ACTUAL, ComparisonOperator: GREATER_THAN, Threshold: 50, ThresholdType: PERCENTAGE}
+          Subscribers: [{SubscriptionType: EMAIL, Address: !Ref AlertEmail}]
+        - Notification: {NotificationType: ACTUAL, ComparisonOperator: GREATER_THAN, Threshold: 80, ThresholdType: PERCENTAGE}
+          Subscribers: [{SubscriptionType: EMAIL, Address: !Ref AlertEmail}]
+        - Notification: {NotificationType: FORECASTED, ComparisonOperator: GREATER_THAN, Threshold: 100, ThresholdType: PERCENTAGE}
+          Subscribers: [{SubscriptionType: EMAIL, Address: !Ref AlertEmail}]
+  AnomalyMonitor:
+    Type: AWS::CE::AnomalyMonitor
+    Properties:
+      MonitorName: !Sub "${ProjectTag}-anomalies"
+      MonitorType: CUSTOM
+      MonitorSpecification: !Sub '{"Tags": {"Key": "project", "Values": ["${ProjectTag}"]}}'
+  AnomalySubscription:
+    Type: AWS::CE::AnomalySubscription
+    Properties:
+      SubscriptionName: !Sub "${ProjectTag}-anomaly-alerts"
+      Frequency: DAILY
+      MonitorArnList: [!Ref AnomalyMonitor]
+      Subscribers: [{Type: EMAIL, Address: !Ref AlertEmail}]
+      ThresholdExpression: !Sub '{"Dimensions": {"Key": "ANOMALY_TOTAL_IMPACT_ABSOLUTE", "MatchOptions": ["GREATER_THAN_OR_EQUAL"], "Values": ["${AnomalyThresholdUsd}"]}}'
+  RequiredTagsRule:
+    Type: AWS::Config::ConfigRule
+    Condition: ConfigRule
+    Properties:
+      ConfigRuleName: !Sub "${ProjectTag}-required-tags"
+      Description: Resources must carry project and environment tags
+      Source: {Owner: AWS, SourceIdentifier: REQUIRED_TAGS}
+      InputParameters: {tag1Key: project, tag2Key: environment}
+      Scope:
+        ComplianceResourceTypes: [AWS::S3::Bucket, AWS::Glue::Job, AWS::Lambda::Function, AWS::StepFunctions::StateMachine, AWS::IAM::Role, AWS::KMS::Key]

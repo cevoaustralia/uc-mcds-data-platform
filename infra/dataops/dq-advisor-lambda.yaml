@@ -1,0 +1,18 @@
+# Bedrock DQ advisor (optional): after each run, reads mcds_ops results via Athena and writes a plain-English
+# issue summary (failed/warned rules, row-count drift vs the previous extract) to the gold bucket.
+# Advisory only - it never changes data or pass/fail outcomes. Row-level data is never sent to the model.
+projectName: project
+functions:
+  - functionName: dq-advisor
+    description: "Summarise pipeline DQ results with Amazon Bedrock (advisory)"
+    srcDir: ../../lambdas/dq_advisor
+    handler: handler.lambda_handler
+    runtime: python3.12
+    roleArn: ssm:/{{org}}/shared/generated-role/dq-advisor/arn
+    timeoutSeconds: 300
+    memorySizeMB: 256
+    environment:
+      MODEL_ID: "{{context:bedrock_model_id}}"
+      ATHENA_WORKGROUP: ssm:/{{org}}/datalake/athena/workgroup/name
+      OUTPUT_BUCKET: ssm:/{{org}}/datalake/datalake/bucket/gold/name
+      OPS_DATABASE: mcds_ops

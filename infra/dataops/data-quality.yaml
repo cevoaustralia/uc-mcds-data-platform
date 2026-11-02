@@ -1,0 +1,21 @@
+# Glue Data Quality rulesets (MDAA @aws-mdaa/dataops-data-quality) on the curated tables - visible and
+# runnable in the Glue console "Data quality" tab (SOW D2). They complement the pipeline's own rules
+# (pipeline/dq/*.yaml), which run inside every Glue job and gate the pipeline.
+projectName: project
+rulesets:
+  silver-unit-enrolment:
+    description: "MCDS unitOfLearningEnrolment: keys complete and unique, EFTSL in range"
+    targetTable:
+      databaseName: project:databaseName/mcds_silver
+      tableName: unit_of_learning_enrolment
+    ruleset: >-
+      Rules = [ RowCount > 0, IsComplete "unit_of_learning_enrolment_id", IsUnique "unit_of_learning_enrolment_id",
+      IsComplete "student_id", IsComplete "unit_of_learning_availability_id", ColumnValues "eftsl" between -0.001 and 1.001 ]
+  gold-student-load-by-unit-campus:
+    description: "Use case A dataset: dimensions complete, measures non-negative"
+    targetTable:
+      databaseName: project:databaseName/mcds_gold
+      tableName: student_load_by_unit_campus
+    ruleset: >-
+      Rules = [ RowCount > 0, IsComplete "unit_code", IsComplete "location_id", IsComplete "calendar_type",
+      ColumnValues "headcount" > 0, ColumnValues "eftsl" >= 0 ]

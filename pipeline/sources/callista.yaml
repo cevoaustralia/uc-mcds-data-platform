@@ -1,0 +1,786 @@
+# ---------------------------------------------------------------------------------------------
+# Source tables (Bronze). Generated from Callista schema metadata by scripts/generate_source_config.py.
+#   file                  file name inside landing/callista/extract_date=<date>/
+#   primary_key           natural key (uniqueness checked by DQ)
+#   date_format           Spark pattern for DATE columns in this extract (two formats exist in UC's files)
+#   past_century_columns  2-digit-year DATE columns that are always in the past (e.g. BIRTH_DT '15-Mar-75')
+#   columns               Callista column -> Spark type + nullability (from SIS_OWNER metadata)
+# Columns present in the metadata but absent from an extract are added as NULL (reported, not failed).
+# ---------------------------------------------------------------------------------------------
+system: callista
+tables:
+  student_unit_attempt:
+    file: student_unit_attempt.csv
+    description: Unit enrolments (one row per student x course x unit offering). PERSON_ID is masked.
+    primary_key:
+    - PERSON_ID
+    - COURSE_CD
+    - UOO_ID
+    date_format: d-MMM-yy
+    columns:
+      PERSON_ID:
+        type: bigint
+        nullable: false
+      COURSE_CD:
+        type: string
+        nullable: false
+      UNIT_CD:
+        type: string
+        nullable: false
+      VERSION_NUMBER:
+        type: int
+        nullable: false
+      CAL_TYPE:
+        type: string
+        nullable: false
+      CI_SEQUENCE_NUMBER:
+        type: int
+        nullable: false
+      LOCATION_CD:
+        type: string
+        nullable: false
+      UNIT_CLASS:
+        type: string
+        nullable: false
+      CI_START_DT:
+        type: date
+        nullable: false
+      CI_END_DT:
+        type: date
+        nullable: false
+      UOO_ID:
+        type: int
+        nullable: false
+      ENROLLED_DT:
+        type: date
+        nullable: true
+      UNIT_ATTEMPT_STATUS:
+        type: string
+        nullable: false
+      ADMINISTRATIVE_UNIT_STATUS:
+        type: string
+        nullable: true
+      DISCONTINUED_DT:
+        type: date
+        nullable: true
+      RULE_WAIVED_DT:
+        type: date
+        nullable: true
+      RULE_WAIVED_PERSON_ID:
+        type: bigint
+        nullable: true
+      NO_ASSESSMENT_IND:
+        type: string
+        nullable: false
+      SUP_UNIT_CD:
+        type: string
+        nullable: true
+      SUP_VERSION_NUMBER:
+        type: int
+        nullable: true
+      EXAM_LOCATION_CD:
+        type: string
+        nullable: true
+      ALTERNATIVE_TITLE:
+        type: string
+        nullable: true
+      OVERRIDE_ENROLLED_CP:
+        type: decimal(6,3)
+        nullable: true
+      OVERRIDE_EFTSU:
+        type: decimal(7,3)
+        nullable: true
+      OVERRIDE_ACHIEVABLE_CP:
+        type: decimal(6,3)
+        nullable: true
+      OVERRIDE_OUTCOME_DUE_DT:
+        type: date
+        nullable: true
+      UPDATE_WHO:
+        type: string
+        nullable: false
+      UPDATE_ON:
+        type: date
+        nullable: false
+      OVERRIDE_CREDIT_REASON:
+        type: string
+        nullable: true
+      ENR_ACTIVITY_START_DT:
+        type: date
+        nullable: true
+      ENR_ACTIVITY_END_DT:
+        type: date
+        nullable: true
+      OVERRIDE_FUNDING_SOURCE:
+        type: string
+        nullable: true
+      OVERRIDE_TOTAL_HOURS:
+        type: int
+        nullable: true
+      OVERRIDE_SUPERVISED_HOURS:
+        type: int
+        nullable: true
+      OVERRIDE_CONTACT_REASON:
+        type: string
+        nullable: true
+      OVERRIDE_FUNDING_REASON:
+        type: string
+        nullable: true
+      RULE_WAIVED_COMMENTS:
+        type: string
+        nullable: true
+      OVERRIDE_VET_IN_SCHOOLS_IND:
+        type: string
+        nullable: true
+      OVERRIDE_GOVT_INDUSTRY_CD:
+        type: string
+        nullable: true
+      SPECIFIC_PROGRAM_ID:
+        type: string
+        nullable: true
+      OVERRIDE_SPI_IND:
+        type: string
+        nullable: false
+      LAST_ATTENDED_DT:
+        type: date
+        nullable: true
+      OVERRIDE_HOURS_ATTENDED:
+        type: int
+        nullable: true
+      DISCONTINUATION_REASON_CD:
+        type: string
+        nullable: true
+      REMISSION_REASON_CD:
+        type: string
+        nullable: true
+      TUITION_PROT_ARR_IND:
+        type: string
+        nullable: false
+  student_course_attempt:
+    file: student_course_attempt.csv
+    description: Course enrolments. PERSON_ID is masked. Extract holds full history for the 2026 courses.
+    primary_key:
+    - PERSON_ID
+    - COURSE_CD
+    date_format: d-MMM-yy
+    columns:
+      PERSON_ID:
+        type: bigint
+        nullable: false
+      COURSE_CD:
+        type: string
+        nullable: false
+      VERSION_NUMBER:
+        type: int
+        nullable: false
+      CAL_TYPE:
+        type: string
+        nullable: false
+      LOCATION_CD:
+        type: string
+        nullable: false
+      ATTENDANCE_MODE:
+        type: string
+        nullable: false
+      ATTENDANCE_TYPE:
+        type: string
+        nullable: false
+      COO_ID:
+        type: int
+        nullable: false
+      STUDENT_CONFIRMED_IND:
+        type: string
+        nullable: false
+      COMMENCEMENT_DT:
+        type: date
+        nullable: true
+      COURSE_ATTEMPT_STATUS:
+        type: string
+        nullable: true
+      PROGRESSION_STATUS:
+        type: string
+        nullable: true
+      DERIVED_ATT_TYPE:
+        type: string
+        nullable: true
+      DERIVED_ATT_MODE:
+        type: string
+        nullable: true
+      PROVISIONAL_IND:
+        type: string
+        nullable: false
+      DISCONTINUED_DT:
+        type: date
+        nullable: true
+      DISCONTINUATION_REASON_CD:
+        type: string
+        nullable: true
+      LAPSED_DT:
+        type: date
+        nullable: true
+      FUNDING_SOURCE:
+        type: string
+        nullable: true
+      EXAM_LOCATION_CD:
+        type: string
+        nullable: true
+      DERIVED_COMPLETION_YR:
+        type: int
+        nullable: true
+      DERIVED_COMPLETION_PERD:
+        type: string
+        nullable: true
+      NOMINATED_COMPLETION_YR:
+        type: int
+        nullable: true
+      NOMINATED_COMPLETION_PERD:
+        type: string
+        nullable: true
+      RULE_CHECK_IND:
+        type: string
+        nullable: false
+      WAIVE_OPTION_CHECK_IND:
+        type: string
+        nullable: false
+      LAST_RULE_CHECK_DT:
+        type: date
+        nullable: true
+      PUBLISH_OUTCOMES_IND:
+        type: string
+        nullable: false
+      COURSE_RQRMNT_COMPLETE_IND:
+        type: string
+        nullable: false
+      COURSE_RQRMNTS_COMPLETE_DT:
+        type: date
+        nullable: true
+      S_COMPLETED_SOURCE_TYPE:
+        type: string
+        nullable: true
+      OVERRIDE_TIME_LIMITATION:
+        type: decimal(4,2)
+        nullable: true
+      ADVANCED_STANDING_IND:
+        type: string
+        nullable: false
+      FEE_CAT:
+        type: string
+        nullable: true
+      CORRESPONDENCE_CAT:
+        type: string
+        nullable: true
+      SELF_HELP_GROUP_IND:
+        type: string
+        nullable: false
+      BASIS_FOR_ADMISSION_TYPE:
+        type: string
+        nullable: true
+      LOGICAL_DELETE_DT:
+        type: date
+        nullable: true
+      ADM_ADMISSION_APPL_NUMBER:
+        type: int
+        nullable: true
+      ADM_NOMINATED_COURSE_CD:
+        type: string
+        nullable: true
+      ADM_SEQUENCE_NUMBER:
+        type: int
+        nullable: true
+      UPDATE_WHO:
+        type: string
+        nullable: false
+      UPDATE_ON:
+        type: date
+        nullable: false
+      GOVT_TRAINING_ORG_UNIT_CD:
+        type: string
+        nullable: true
+      GOVT_TRAINING_OU_START_DT:
+        type: date
+        nullable: true
+      RULE_WAIVED_DT:
+        type: date
+        nullable: true
+      RULE_WAIVED_PERSON_ID:
+        type: bigint
+        nullable: true
+      GOVT_COHORT_YR:
+        type: int
+        nullable: true
+      STUDY_REASON_CD:
+        type: string
+        nullable: true
+      RULE_WAIVED_COMMENTS:
+        type: string
+        nullable: true
+      VET_IN_SCHOOLS_IND:
+        type: string
+        nullable: false
+      SKILLS_REFORM_IND:
+        type: string
+        nullable: false
+      FEE_MAINTENANCE_IND:
+        type: string
+        nullable: false
+      FUNDING_SOURCE_EXEMPT_IND:
+        type: string
+        nullable: false
+      FUNDING_SOURCE_COMMENTS:
+        type: string
+        nullable: true
+      GOVT_INDUSTRY_CD:
+        type: string
+        nullable: true
+      SPECIFIC_PROGRAM_ID:
+        type: string
+        nullable: true
+      UNIT_ONLY_ENROLMENT_IND:
+        type: string
+        nullable: false
+      QUALIFICATION_ISSUED_IND:
+        type: string
+        nullable: false
+      REPLACEMENT_COURSE_IND:
+        type: string
+        nullable: false
+      LOAN_CAP_AMOUNT:
+        type: decimal(8,2)
+        nullable: true
+      LOAN_CAP_COMMENTS:
+        type: string
+        nullable: true
+      EXCLUDE_FROM_PRG_SURVEY_IND:
+        type: string
+        nullable: false
+      COURSE_ONLY_ENROLMENT_IND:
+        type: string
+        nullable: false
+      FAILED_PASS_RATE_IND:
+        type: string
+        nullable: false
+  person:
+    file: person.csv
+    description: People with a 2026 unit enrolment. Identity fields masked.
+    primary_key:
+    - PERSON_ID
+    date_format: d-MMM-yy
+    columns:
+      PERSON_ID:
+        type: bigint
+        nullable: false
+      SURNAME:
+        type: string
+        nullable: false
+      GIVEN_NAMES:
+        type: string
+        nullable: true
+      SEX:
+        type: string
+        nullable: false
+      TITLE:
+        type: string
+        nullable: true
+      STAFF_MEMBER_IND:
+        type: string
+        nullable: false
+      DECEASED_IND:
+        type: string
+        nullable: false
+      ARCHIVE_EXCLUSION_IND:
+        type: string
+        nullable: false
+      ARCHIVE_DT:
+        type: date
+        nullable: true
+      PURGE_EXCLUSION_IND:
+        type: string
+        nullable: false
+      PURGE_DT:
+        type: date
+        nullable: true
+      BIRTH_DT:
+        type: date
+        nullable: true
+      SALUTATION:
+        type: string
+        nullable: true
+      ORACLE_USERNAME:
+        type: string
+        nullable: true
+      PREFERRED_GIVEN_NAME:
+        type: string
+        nullable: true
+      EMAIL_ADDR:
+        type: string
+        nullable: true
+      UPDATE_WHO:
+        type: string
+        nullable: false
+      UPDATE_ON:
+        type: date
+        nullable: false
+      AUTO_ENABLE_IND:
+        type: string
+        nullable: true
+      NAME_FORMAT_CD:
+        type: string
+        nullable: true
+      COMMENTS:
+        type: string
+        nullable: true
+      OVRD_ACCEPT_WS_EU_IND:
+        type: string
+        nullable: true
+      OVRD_WS_EU_IDENTIFIER:
+        type: string
+        nullable: true
+      OVRD_WS_EU_API_ID_TYPE:
+        type: string
+        nullable: true
+    past_century_columns:
+    - BIRTH_DT
+  unit_version:
+    file: unit_version.csv
+    description: Unit versions used by 2026 unit enrolments
+    primary_key:
+    - UNIT_CD
+    - VERSION_NUMBER
+    date_format: dd/MMM/yy
+    columns:
+      UNIT_CD:
+        type: string
+        nullable: false
+      VERSION_NUMBER:
+        type: int
+        nullable: false
+      START_DT:
+        type: date
+        nullable: false
+      REVIEW_DT:
+        type: date
+        nullable: true
+      EXPIRY_DT:
+        type: date
+        nullable: true
+      END_DT:
+        type: date
+        nullable: true
+      UNIT_STATUS:
+        type: string
+        nullable: false
+      TITLE:
+        type: string
+        nullable: false
+      SHORT_TITLE:
+        type: string
+        nullable: false
+      TITLE_OVERRIDE_IND:
+        type: string
+        nullable: false
+      ABBREVIATION:
+        type: string
+        nullable: false
+      UNIT_LEVEL:
+        type: string
+        nullable: false
+      CREDIT_POINT_DESCRIPTOR:
+        type: string
+        nullable: true
+      ENROLLED_CREDIT_POINTS:
+        type: decimal(6,3)
+        nullable: true
+      POINTS_OVERRIDE_IND:
+        type: string
+        nullable: false
+      SUPP_EXAM_PERMITTED_IND:
+        type: string
+        nullable: false
+      COORD_PERSON_ID:
+        type: bigint
+        nullable: false
+      OWNER_ORG_UNIT_CD:
+        type: string
+        nullable: false
+      OWNER_OU_START_DT:
+        type: date
+        nullable: false
+      AWARD_COURSE_ONLY_IND:
+        type: string
+        nullable: false
+      RESEARCH_UNIT_IND:
+        type: string
+        nullable: false
+      SUB_UNIT_ALLOWED_IND:
+        type: string
+        nullable: false
+      SUP_UNIT_ALLOWED_IND:
+        type: string
+        nullable: false
+      INDUSTRIAL_IND:
+        type: string
+        nullable: false
+      PRACTICAL_IND:
+        type: string
+        nullable: false
+      REPEATABLE_IND:
+        type: string
+        nullable: false
+      ASSESSABLE_IND:
+        type: string
+        nullable: false
+      ACHIEVABLE_CREDIT_POINTS:
+        type: decimal(6,3)
+        nullable: true
+      POINTS_INCREMENT:
+        type: decimal(6,3)
+        nullable: true
+      POINTS_MIN:
+        type: decimal(6,3)
+        nullable: true
+      POINTS_MAX:
+        type: decimal(6,3)
+        nullable: true
+      UNIT_INT_COURSE_LEVEL_CD:
+        type: string
+        nullable: true
+      UPDATE_WHO:
+        type: string
+        nullable: false
+      UPDATE_ON:
+        type: date
+        nullable: false
+      SUP_LOAD_INCURRED_IND:
+        type: string
+        nullable: false
+      VET_IND:
+        type: string
+        nullable: false
+      UNIT_COMPETENCY_IND:
+        type: string
+        nullable: false
+      TOTAL_CONTACT_HOURS:
+        type: int
+        nullable: true
+      SUPERVISED_CONTACT_HOURS:
+        type: int
+        nullable: true
+      DURATION_LIMIT:
+        type: int
+        nullable: true
+      HOURS_OVERRIDE_IND:
+        type: string
+        nullable: false
+      HOURS_INCREMENT:
+        type: int
+        nullable: true
+      HOURS_MIN:
+        type: int
+        nullable: true
+      HOURS_MAX:
+        type: int
+        nullable: true
+      UNIT_COURSE_TYPE:
+        type: string
+        nullable: true
+      SUP_COUNT_IN_CRS_COMP_IND:
+        type: string
+        nullable: false
+      SUP_INCL_VET_GOVT_ENR_FILE_IND:
+        type: string
+        nullable: false
+      TOTAL_WORK_EXP_HOURS:
+        type: int
+        nullable: true
+      AVG_WORK_EXP_HOURS:
+        type: int
+        nullable: true
+      LANGUAGE_CD:
+        type: string
+        nullable: true
+      CO_TAUGHT_UNIT_CD:
+        type: string
+        nullable: true
+      CO_TAUGHT_VERSION_NUMBER:
+        type: int
+        nullable: true
+  teaching_responsibility:
+    file: teaching_responsibility.csv
+    description: Teaching split (percentage) of each unit version across org units
+    primary_key:
+    - UNIT_CD
+    - VERSION_NUMBER
+    - ORG_UNIT_CD
+    - OU_START_DT
+    date_format: dd/MMM/yy
+    columns:
+      UNIT_CD:
+        type: string
+        nullable: false
+      VERSION_NUMBER:
+        type: int
+        nullable: false
+      ORG_UNIT_CD:
+        type: string
+        nullable: false
+      OU_START_DT:
+        type: date
+        nullable: false
+      PERCENTAGE:
+        type: decimal(5,2)
+        nullable: false
+      UPDATE_WHO:
+        type: string
+        nullable: false
+      UPDATE_ON:
+        type: date
+        nullable: false
+  org_unit:
+    file: org_unit.csv
+    description: Active organisational units (faculties, schools, partners)
+    primary_key:
+    - ORG_UNIT_CD
+    - START_DT
+    date_format: dd/MMM/yy
+    columns:
+      ORG_UNIT_CD:
+        type: string
+        nullable: false
+      START_DT:
+        type: date
+        nullable: false
+      END_DT:
+        type: date
+        nullable: true
+      DESCRIPTION:
+        type: string
+        nullable: false
+      ORG_STATUS:
+        type: string
+        nullable: false
+      ORG_TYPE:
+        type: string
+        nullable: false
+      MEMBER_TYPE:
+        type: string
+        nullable: false
+      INSTITUTION_CD:
+        type: string
+        nullable: true
+      GOVT_ORG_UNIT_CD:
+        type: string
+        nullable: true
+      UPDATE_WHO:
+        type: string
+        nullable: false
+      UPDATE_ON:
+        type: date
+        nullable: false
+      COUNTRY_CD:
+        type: string
+        nullable: true
+      EXPLANATION:
+        type: string
+        nullable: true
+      SHORT_TITLE:
+        type: string
+        nullable: true
+  location:
+    file: location.csv
+    description: Locations / campuses
+    primary_key:
+    - LOCATION_CD
+    date_format: dd/MMM/yy
+    columns:
+      LOCATION_CD:
+        type: string
+        nullable: false
+      DESCRIPTION:
+        type: string
+        nullable: false
+      LOCATION_TYPE:
+        type: string
+        nullable: false
+      MAIL_DLVRY_WRK_DAYS:
+        type: int
+        nullable: true
+      COORD_PERSON_ID:
+        type: bigint
+        nullable: true
+      SSF_AVAILABLE_IND:
+        type: string
+        nullable: false
+      CLOSED_IND:
+        type: string
+        nullable: false
+      UPDATE_WHO:
+        type: string
+        nullable: false
+      UPDATE_ON:
+        type: date
+        nullable: false
+      GOVT_LOCATION_CD:
+        type: string
+        nullable: true
+      TRAINING_PROVIDER_TYPE:
+        type: string
+        nullable: true
+      GOVT_STAT_LOCAL_AREA_CD:
+        type: string
+        nullable: true
+      GSLA_S_STATE_CD:
+        type: string
+        nullable: true
+      REMOTENESS_AREA_CD:
+        type: string
+        nullable: true
+      TITLE:
+        type: string
+        nullable: true
+      GOVT_TRAINING_CNTRY_CD:
+        type: string
+        nullable: true
+      GOVT_OFFSHR_DLVRY_CD:
+        type: string
+        nullable: true
+  cal_instance:
+    file: cal_instance.csv
+    description: Calendar instances (teaching periods, academic years, load calendars)
+    primary_key:
+    - CAL_TYPE
+    - SEQUENCE_NUMBER
+    date_format: dd/MMM/yy
+    columns:
+      CAL_TYPE:
+        type: string
+        nullable: false
+      SEQUENCE_NUMBER:
+        type: int
+        nullable: false
+      START_DT:
+        type: date
+        nullable: false
+      END_DT:
+        type: date
+        nullable: false
+      CAL_STATUS:
+        type: string
+        nullable: false
+      ALTERNATE_CODE:
+        type: string
+        nullable: true
+      SUP_CAL_STATUS_DIFFER_IND:
+        type: string
+        nullable: false
+      UPDATE_WHO:
+        type: string
+        nullable: false
+      UPDATE_ON:
+        type: date
+        nullable: false
+      PRIOR_CI_SEQUENCE_NUMBER:
+        type: int
+        nullable: true
+      EXPLANATION:
+        type: string
+        nullable: true

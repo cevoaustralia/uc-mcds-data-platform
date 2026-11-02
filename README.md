@@ -1,126 +1,161 @@
 # UC MCDS Data Platform
 
-University of Canberra × Cevo × AWS — MCDS Data Foundation EBA (19 Oct – 29 Nov 2026).
+University of Canberra · MCDS Data Foundation EBA (Cevo / AWS).
+Callista student data → **MCDS v2.1.1** Silver entities → curated Gold datasets for **use case A (student load by
+unit and campus)** and **use case B (course enrolment profile)**, on an **AWS MDAA 1.9.0** platform.
 
-Callista (Oracle) enrolment data, delivered as **CSV extracts**, is onboarded to a governed AWS
-data lake built with **AWS MDAA**, conformed to **MCDS v2.1.1**, and reported as
-**standardised student load by unit and facility** (SOW D5): Athena Gold tables plus MCDS
-Reporting Framework files.
+Everything is **config-driven** and **account-agnostic**:
 
-Design, mapping and status documents live outside the repo in
-`Docs/published-docs/` (also published to Confluence). Start with `README-Document-Guide.md`.
-This README is the operational runbook (SOW D6).
+| To… | Change | Code change? | Redeploy? |
+|---|---|---|---|
+| add a Callista table | `pipeline/sources/callista.yaml` (`scripts/generate_source_config.py`) | no | no |
+| add / change an MCDS entity | `pipeline/silver/<entity>.yaml` | no | no |
+| add a report / dataset | `pipeline/gold/<report>.yaml` | no | no |
+| change a business rule or code mapping | `pipeline/rules/*.yaml`, `pipeline/crosswalks/*.yaml` | no | no |
+| add a DQ rule | `pipeline/dq/<layer>.yaml` | no | no |
+| add a dashboard / visual | `quicksight/dashboards.yaml` | no | re-run deploy |
+| deploy to another AWS account | `config/environments/<env>.yaml` (or GitHub Environment variables) | no | run deploy |
 
----
-
-## Pipeline
+## Architecture
 
 ```
-Callista CSV extract          Bronze (mcds_bronze)        Silver (mcds_silver, MCDS)        Gold (mcds_gold)
-landing/callista/<date>/  ->  7 tables, Parquet,     ->   student                      ->   student_load_by_unit
-  GOVT_STUDENT_LOAD.csv       append-only by              unit_of_learning                  student_load_by_campus
-  STUDENT_UNIT_ATTEMPT.csv    _extract_date               organisation                      student_load_by_teaching_org_unit
-  PERSON.csv                                              location                          student_load_by_unit_campus
-  UNIT_VERSION.csv                                        learning_period                   reporting_period
-  ORG_UNIT.csv                                            student_unit_load (fact)          + MCDS Reporting Framework
-  LOCATION.csv                                            + MCDS JSON (studentlifecycle)      definitions + fact data
-  CAL_INSTANCE.csv
-        landing-to-bronze           bronze-to-silver                       silver-to-gold
-        (Bronze DQ)                 (Silver DQ, lineage comments)          (reconciliation DQ)
+Callista (Oracle) CSV extract
+   │  s3://<landing>/callista/extract_date=YYYY-MM-DD/<table>.csv
+   ▼
+Bronze  mcds_bronze.*   typed Parquet per Callista table, one partition per extract   (sources/*.yaml)
+   ▼
+Silver  mcds_silver.*   MCDS v2.1.1 entities, validated against MCDS JSON Schema      (silver/*.yaml)
+   ▼
+Gold    mcds_gold.*     use-case datasets + MCDS Reporting Framework files            (gold/*.yaml)
+Ops     mcds_ops.*      pipeline runs, row counts, DQ results, MCDS validation          (monitoring)
+   ▼
+Athena (athena/queries) · QuickSight (quicksight/) · SageMaker Unified Studio (optional) · Bedrock DQ advisor (optional)
 ```
 
-All three Glue jobs call the same functions in `etl/common/pipeline.py` as the local runner,
-so what passes locally is what runs in Glue.
+One generic Glue script (`etl/jobs/run_stage.py`) runs each stage; the engine (`etl/common/`) knows nothing about
+specific tables or entities. Step Functions (`infra/dataops/stepfunction.yaml`) runs Bronze → Silver → Gold → advisor.
+
+### MDAA modules (`infra/`, rendered into `mdaa.yaml`)
+
+| Domain | Module | SOW |
+|---|---|---|
+| shared | roles, glue-catalog†, lakeformation-settings†, audit†, audit-trail† | D1, D4 |
+| datalake | datalake (landing, bronze, silver, gold, artifacts buckets + KMS), athena | D1, D5 |
+| dataops | project (Glue DBs + Lake Formation grants), jobs, orchestration (Step Functions), data-quality*, dq-advisor* | D2, D3, D4 |
+| ai | bedrock-settings*† (model invocation logging) | add-on |
+| consumption | quicksight-account*, quicksight-project* | add-on |
+| smus | sagemaker (SageMaker Unified Studio)* | add-on |
+
+\* optional, switched by `features.*` in `config/environments/<env>.yaml`.
+† account-wide settings: deployed only when `features.account_level_settings: true` (dedicated account).
+
+## Environments
+
+| File / GitHub Environment | Account | `account_level_settings` | Status |
+|---|---|---|---|
+| `config/environments/cevo-aws-mcds.yaml` | Cevo shared account `cevo-dev25`, ap-southeast-2, prefix `cevo-dev25-mcds` | `false` (shared) | values set; deploy role ARN pending |
+| `config/environments/uc-aws-mcds.yaml` | UC account | `true` (dedicated) | placeholders until UC provides values |
+
+Moving from Cevo to UC = fill `uc-aws-mcds.yaml` (or its GitHub Environment variables) and run `deploy` with
+`environment: uc-aws-mcds`. No code or config changes. All resources and SSM parameters are prefixed with the
+organisation, so deployments never collide.
+
+### Shared account (Cevo): one manual step
+
+With `account_level_settings: false` the deployment does not change Lake Formation account settings (other teams
+depend on them). The Glue databases' Lake Formation grants are created by CloudFormation during the `dataops/project`
+deployment, so the identities creating them must be Lake Formation administrators **before** that module is deployed.
+Anyone with Lake Formation admin rights in the dev account (no one else needed) adds, in
+Lake Formation > Administrative roles and tasks > Data lake administrators:
+
+1. the CDK CloudFormation execution role `cdk-hnb659fds-cfn-exec-role-<ACCOUNT>-<REGION>` (MDAA deploys through it);
+2. the generated data-admin role `<org>-dev-shared-roles-data-admin` (look up the exact name in IAM after the
+   `shared/roles` module is deployed).
+
+Deploy order in a shared account: `shared` + `datalake` domains first -> add the two LF admins -> remaining domains.
+Verify the exact role names on the first deployment - MDAA's generated names are the source of truth.
+
+## Cost
+
+Serverless and pay-per-use; nothing runs between pipeline runs except S3 storage and the KMS keys.
+
+| Driver | Control in this repo |
+|---|---|
+| Glue job time | 2-3 G.1X workers, 30-min timeout, no retries (`infra/dataops/jobs.yaml`) |
+| Athena scans | 10 GB per-query cutoff (`infra/data/athena-workgroup.yaml`); Gold tables are a few MB |
+| QuickSight | Author/Reader per user per month; no Pro users / Q&A (avoids the per-account Q fee); DIRECT_QUERY (no SPICE) |
+| Bedrock advisor | `amazon.nova-micro-v1:0` (lowest-cost text model, In-Region Sydney), metadata-only prompt, run on demand |
+| CloudTrail | only in dedicated accounts (`account_level_settings`); shared accounts use the existing trail |
+| S3 | landing extracts move to Glacier IR after 90 days, expire after 2 years |
+| Guardrails | `bootstrap/cost-and-tag-guardrails.yaml`: monthly budget + anomaly alerts scoped to tag `project=uc-mcds` |
+
+## Business rules (all in `pipeline/rules/load.yaml`, each flagged for UC confirmation)
+
+- EFTSL per unit enrolment = `TRUNC(NVL(OVERRIDE_EFTSU, credit points / 24), 3)` - mirrors UC view `UC_SUA_EFTSU_FULL_V`;
+  24 CP standard annual load inferred from the data (Callista `COURSE_VERSION.STD_ANNUAL_LOAD` not extracted).
+- Counts as load: `ENROLLED`, `COMPLETED`, and `DISCONTIN` with `WD-LATE-LD` / `WD-FAIL` (after census);
+  `WD-EARLY`, `INVALID`, `DUPLICATE`, `UNCONFIRM` and UNCONFIRM course attempts carry no load.
+- Scope: HE coursework (incl. UC College and offshore partner delivery, flagged ONSHORE/OFFSHORE);
+  HDR and ELICOS reported separately (`pipeline/crosswalks/calendar_type.yaml`).
+- Faculty = unit's owning org unit (`UNIT_VERSION.OWNER_ORG_UNIT_CD`); school split = `TEACHING_RESPONSIBILITY` %.
+- MCDS identifiers: organisation `ABN 81633873422`, system `CALLISTA-SISPROD` (`pipeline/pipeline.yaml`, to confirm).
+
+## Local development (no AWS)
+
+Prerequisites: Python 3.11+, Java 17, Node 20+; `pip install -r requirements-dev.txt`; `npm ci`.
+
+```bash
+# 1. MCDS schemas (licensed - never committed): compile the intermediate bundle from the package
+python scripts/compile_mcds_bundle.py --package "<path>/v2.1.1-MCDS Schema"
+# 2. Put an extract under data/landing/callista/extract_date=YYYY-MM-DD/ (git-ignored)
+# 3. Run the whole pipeline locally (same engine and config as Glue)
+python scripts/run_local.py --extract-date 2026-10-26
+# 4. Tests (synthetic data) and infrastructure config validation (placeholders allowed)
+python -m pytest -q tests
+python scripts/render_mdaa.py --env cevo-aws-mcds --allow-placeholders && python scripts/validate_infra.py
+```
+
+Local output: `.local-lake/<layer>/<table>/` (Parquet) and `.local-lake/gold/_mcds_reporting/` (MCDS Reporting Framework JSON).
+
+## Deploying to an AWS account (GitHub Actions)
+
+1. **Once per account (administrator):** `npx cdk bootstrap aws://<ACCOUNT>/<REGION>` and deploy
+   `bootstrap/github-oidc-deploy-role.yaml` (GitHub OIDC role - no stored credentials).
+2. **Environment values:** fill `config/environments/<env>.yaml` placeholders, or set GitHub Environment variables
+   `MDAA_AWS_ACCOUNT_ID`, `MDAA_AWS_REGION`, `MDAA_AWS_DEPLOY_ROLE_ARN`, `MDAA_ORGANIZATION`,
+   `MDAA_NOTIFICATION_EMAIL`, `MDAA_QUICKSIGHT_IDENTITY_REGION`, `MDAA_BEDROCK_MODEL_ID`.
+   Optional: deploy `bootstrap/cost-and-tag-guardrails.yaml` and activate the tag keys as cost allocation tags.
+   Rendering refuses to deploy while any used value is still a `<PLACEHOLDER>`.
+3. **Workflow `deploy`** (`action: diff` first, then `deploy`): renders + validates `mdaa.yaml`, runs MDAA,
+   syncs `pipeline/` to `s3://<artifacts>/pipeline/`, deploys QuickSight assets when enabled.
+4. **MCDS bundle (once, licensed):** `scripts/upload_mcds_bundle.sh "<MCDS package>" <env>`.
+5. **Extract:** `scripts/upload_extract.sh <folder> <YYYY-MM-DD> <env>` (or UC drops files into the landing bucket).
+6. **Workflow `run-pipeline`**: starts the Step Function for the extract date; optional Bedrock advisor.
+7. Bedrock (if `features.bedrock_advisor`): enable model access for the configured model in the Bedrock console.
+8. After the first run: set `features.glue_dq_rulesets: true` and re-run `deploy` (Glue DQ rulesets need the tables).
+
+Workflow `ci` runs tests and MDAA config validation on every push, without AWS access.
+
+## Demonstrating the use cases
+
+| Where | What |
+|---|---|
+| Athena | `athena/queries/01-05` use cases A and B, `06` reconciliation, `07` lineage trace, `08` pipeline monitoring |
+| Glue Data Catalog | every Silver column comment = Callista source → MCDS path; table properties = MCDS definition, keys, PII |
+| QuickSight | dashboards 1-4: ingestion/Bronze, Silver conformance, student load (A), course enrolment (B) |
+| SageMaker Unified Studio | optional (`features.smus`): lineage graph and notebooks over the same catalog |
+| Bedrock | optional advisor: plain-English summary of each run's DQ results (advisory only, metadata only) |
 
 ## Repository layout
 
-| Path | What |
-|---|---|
-| `mdaa.yaml`, `governance/`, `data/`, `dataops/` | MDAA 1.9.0 deployment config (roles, Lake Formation, Glue Catalog, audit + CloudTrail, S3 data lake, Athena, Glue databases + grants, Glue jobs). All files validate against the MDAA module schemas. |
-| `config/business-rules.yaml` | Rules and EBA defaults awaiting UC confirmation (`confirmed: false`) |
-| `config/silver-mappings.yaml` | Callista → MCDS field mappings (executed, also the D6 mapping artefact and D4 lineage source) |
-| `config/gold-aggregations.yaml` | Gold report definitions (dimensions, measures, filters) + MCDS reporting mapping |
-| `config/data-quality-rules.yaml` | 19 data quality rules (completeness, keys, FKs, domains, reconciliation) |
-| `etl/common/` | `schemas.py` (Callista columns), `pipeline.py` (transforms + exports), `data_quality.py`, `mcds_validation.py`, `glue_io.py` |
-| `etl/bronze|silver|gold/` | Glue job entry points |
-| `scripts/` | `generate-mock-data.py`, `run-local-pipeline.py`, `validate-mcds-json.py` |
-| `docs/model/` | Model diagrams: `lineage-explorer.html` (interactive, open in a browser) and Mermaid sources + PNGs for the flow, Callista source model and MCDS Silver model |
-| `athena/queries/query-gold-reports.sql` | D5 demo queries, reconciliation, lineage and access-control checks |
-| `tests/` | unit tests (no Spark) + end-to-end integration test (local Spark) |
-| `analysis/Sisprod_schema_metadata.csv` | Real Callista schema export (3,914 tables) — ground truth for column names (git-ignored) |
-
-## 1. Run locally (no AWS)
-
-Prerequisites: Python 3.10+, Java 17+, and the MCDS package unzipped at `MCDS - v2.1.1/v2.1.1/`.
-
-```bash
-pip install -r requirements.txt
-python scripts/generate-mock-data.py            # mock Callista CSV extract (masked, no PII)
-python scripts/run-local-pipeline.py            # landing -> bronze -> silver -> gold + DQ + MCDS validation
-pytest tests                                    # 23 tests incl. end-to-end
+```
+config/environments/   one file per target account         pipeline/   all pipeline behaviour (YAML)
+infra/                 MDAA module configs + mdaa.template.yaml        etl/        engine (common/) + Glue entry (jobs/)
+quicksight/            datasets + dashboards as config                 lambdas/    Bedrock DQ advisor
+athena/queries/        demo SQL                                        scripts/    render, validate, run, deploy helpers
+bootstrap/             one-time GitHub OIDC role                       tests/      unit + synthetic end-to-end tests
+.github/workflows/     ci, deploy, run-pipeline                        docs/       Kiro-era docs (to be updated)
 ```
 
-Outputs in `.local-lake/`: Parquet per layer, `exports/*.csv` (D5 report exports),
-`silver/mcds_json/` (MCDS payloads), `gold/mcds_reporting/` (report definitions + fact data),
-`run-report.json` (row counts per stage, every DQ result, every validation result).
-Exit code 0 only if every fail-severity DQ rule and every MCDS validation passes.
-
-To run on a real UC extract: put the 7 CSVs under `<landing>/callista/<YYYY-MM-DD>/` and pass
-`--landing <landing>`.
-
-## 2. Deploy to AWS (MDAA)
-
-```bash
-npm install                                     # @aws-mdaa/cli 1.9.0
-export AWS_PROFILE=<uc-or-cevo-sandbox>
-npx @aws-mdaa/cli synth                         # first run: confirm SSM parameter paths (see note)
-npx @aws-mdaa/cli deploy -d shared              # roles, Lake Formation, catalog, audit
-npx @aws-mdaa/cli deploy -d datalake            # buckets + Athena workgroup
-npx @aws-mdaa/cli deploy -d dataops             # Glue databases + grants + jobs
-```
-
-Note: cross-module references use MDAA's default SSM layout
-(`/{{org}}/<domain>/<module>/...`, `/{{org}}/shared/generated-role/<role>/arn`). The configs pass
-MDAA's schemas but have not yet been synthesised against an AWS account; confirm the
-parameter names on the first `synth`.
-
-## 3. Run the pipeline in AWS
-
-1. Upload the extract: `aws s3 cp ./extract/ s3://<landing-bucket>/callista/2026-10-25/ --recursive`
-2. Run `landing-to-bronze` (optional `--EXTRACT_DATE`; default = latest folder), then
-   `bronze-to-silver`, then `silver-to-gold` (Glue console or `aws glue start-job-run`).
-3. Each job fails (non-zero) if a fail-severity DQ rule fails; DQ results are in the job log and
-   `s3://<silver-bucket>/_dq_results/`.
-4. Validate MCDS conformance of the exports:
-   ```bash
-   aws s3 sync s3://<silver-bucket>/mcds_json/2026-10-25/ ./out/json
-   aws s3 sync s3://<gold-bucket>/mcds_reporting/2026-10-25/ ./out/rep
-   python scripts/validate-mcds-json.py --students "out/json/*.json" \
-     --definitions "out/rep/reportdefinitions/*.json" --factdata "out/rep/factdata/*.json"
-   ```
-5. Query Gold in Athena: `athena/queries/query-gold-reports.sql`.
-
-## 4. Onboarding pattern (SOW D3): common changes
-
-| Change | Edit | Code change? |
-|---|---|---|
-| UC confirms a rule (status codes, submission selection, student number, facility) | `config/business-rules.yaml` | No |
-| Map another Callista column to an MCDS field | `etl/common/schemas.py` (extract column) + `config/silver-mappings.yaml` | Column list only |
-| New Gold report / new dimension / new measure | `config/gold-aggregations.yaml` | No |
-| New DQ rule | `config/data-quality-rules.yaml` | No |
-| New Callista table | `schemas.py` spec + mapping entity + (if a new join) `pipeline.build_silver` | Yes (small) |
-
-After editing config: re-run locally (`run-local-pipeline.py`), then `mdaa deploy -d dataops`
-(ships the YAML with the jobs) and re-run the jobs.
-
-## 5. Troubleshooting
-
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| `fact_no_fanout` fails | STUDENT_UNIT_ATTEMPT key not unique in the extract | Check `bronze_sua_key_unique`; confirm SUA key with UC DBA |
-| `fk_location` fails | Load row with no matching unit attempt | Extract SUA for the same calendar instances as the load |
-| `fk_unit` / `fk_teaching_org_unit` fails | UNIT_VERSION / ORG_UNIT extract missing versions or start dates | Extract all versions / all ORG_UNIT start dates referenced by the load |
-| `gold_eftsl_reconciles` fails | A Gold report dropped rows (null dimension) | Look for null `location_id` / `teaching_org_unit_code` in Silver |
-| EFTSL higher than the government load file | `submission_selection: all` with overlapping submissions | Use `latest_per_unit_attempt` (default) |
-| MCDS JSON fails `learningPeriod` / `location` required | CAL_INSTANCE or LOCATION missing rows | Include them in the extract |
-| CSV read fails (FAILFAST) | Column order or date format differs from `schemas.py` | Align the extract or update `TABLE_SPECS` / `csv_options` |
+Git-ignored by design: `mdaa.yaml` (rendered), `mcds/` (licensed schemas/bundle), `data/landing/` (student data),
+`.local-lake/`.

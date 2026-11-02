@@ -1,0 +1,27 @@
+# QuickSight Athena data source + shared folder. Datasets and dashboards are deployed from
+# quicksight/ by scripts/deploy_quicksight.py (MDAA does not manage QuickSight datasets/dashboards).
+principals:
+  Readers: "arn:{{partition}}:quicksight:{{context:qs_identity_region}}:{{account}}:group/default/{{context:qs_readers_group}}"
+  Authors: "arn:{{partition}}:quicksight:{{context:qs_identity_region}}:{{account}}:group/default/{{context:qs_authors_group}}"
+dataSources:
+  ATHENA:
+    mcds-athena:
+      displayName: "UC MCDS (Athena)"
+      dataSourceSpecificParameters:
+        athenaParameters:
+          workGroup: ssm:/{{org}}/datalake/athena/workgroup/name
+      permissions:
+        - {actions: READER_DATA_SOURCE, principal: Readers}
+        - {actions: AUTHOR_DATA_SOURCE, principal: Authors}
+sharedFolders:
+  uc-mcds:
+    permissions:
+      - {principal: Readers, actions: READER_FOLDER}
+      - {principal: Authors, actions: AUTHOR_FOLDER}
+resourceAccessRolePermissions:
+  s3BucketArns:
+    - ssm:/{{org}}/datalake/datalake/bucket/gold/arn
+    - ssm:/{{org}}/datalake/athena/bucket/arn
+  kmsKeyArns:
+    - ssm:/{{org}}/datalake/datalake/kms/arn
+    - ssm:/{{org}}/datalake/athena/kms/key/arn

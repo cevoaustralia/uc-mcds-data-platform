@@ -1,0 +1,15 @@
+# QuickSight subscription (only when the account has none - see quicksight.create_account_subscription)
+account:
+  edition: ENTERPRISE
+  authenticationMethod: IAM_AND_QUICKSIGHT
+  notificationEmail: "{{context:notification_email}}"
+  vpcId: "{{context:qs_vpc_id}}"
+  subnetIds:
+    - "{{context:qs_subnet_id1}}"
+    - "{{context:qs_subnet_id2}}"
+  groups:
+    - "{{context:qs_readers_group}}"
+    - "{{context:qs_authors_group}}"
+  resourceAccessRolePermissions:
+    awsManagedPolicies:
+      - service-role/AWSQuicksightAthenaAccess

@@ -1,0 +1,33 @@
+rules:
+  - id: silver_calendar_type_mapped
+    severity: warn
+    description: "Every teaching calendar type used by unit enrolments is in crosswalks/calendar_type.yaml"
+    sql: "SELECT COUNT(*) FROM silver.learning_period WHERE cohort = 'UNMAPPED'"
+  - id: silver_location_type_mapped
+    severity: warn
+    description: "Every location type is in crosswalks/location_type.yaml"
+    sql: "SELECT COUNT(*) FROM silver.location WHERE location_type IS NULL"
+  - id: silver_unit_owner_resolved
+    severity: warn
+    description: "Every unit's owning org unit resolves to an organisation"
+    sql: "SELECT COUNT(*) FROM silver.unit_of_learning WHERE owner_organisation_id IS NULL"
+  - id: silver_enrolment_has_course_attempt
+    severity: fail
+    description: "Every unit enrolment links to a course attempt (UC view inner-joins SUA to SCA)"
+    sql: "SELECT COUNT(*) FROM silver.unit_of_learning_enrolment WHERE load_exclusion_reason = 'NO_COURSE_ATTEMPT'"
+  - id: silver_teaching_split_100
+    severity: fail
+    description: "Teaching responsibility shares sum to 100% per unit version"
+    sql: >-
+      SELECT COUNT(*) FROM (SELECT unit_of_learning_id, SUM(share) s FROM silver.unit_teaching_responsibility
+      GROUP BY unit_of_learning_id HAVING abs(s - 1) > 0.0001)
+  - id: silver_enrolment_has_teaching_split
+    severity: warn
+    description: "Every enrolled unit version has a teaching responsibility split (else excluded from school view)"
+    sql: >-
+      SELECT COUNT(DISTINCT f.unit_of_learning_id) FROM silver.unit_of_learning_enrolment f
+      LEFT ANTI JOIN silver.unit_teaching_responsibility t ON t.unit_of_learning_id = f.unit_of_learning_id
+  - id: silver_eftsl_non_negative
+    severity: fail
+    description: "EFTSL is never negative and is zero when the enrolment does not count as load"
+    sql: "SELECT COUNT(*) FROM silver.unit_of_learning_enrolment WHERE eftsl < 0 OR (NOT counts_as_load AND eftsl <> 0)"

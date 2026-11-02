@@ -1,0 +1,70 @@
+# ---------------------------------------------------------------------------------------------
+# QuickSight datasets and dashboards as config (deployed by scripts/deploy_quicksight.py).
+# MDAA creates the Athena data source "UC MCDS (Athena)" and shared folder (infra/consumption/);
+# this file adds datasets (one per Glue table) and dashboards covering every pipeline stage.
+# Visual types: kpi | bar | table. Fields refer to dataset columns; measures take agg (SUM|MAX|COUNT|DISTINCT_COUNT).
+# Add a visual / dashboard here and re-run the deploy workflow - no code change.
+# ---------------------------------------------------------------------------------------------
+data_source_name: "UC MCDS (Athena)"
+id_prefix: "uc-mcds"
+
+datasets:
+  ops_pipeline_runs:      {database: mcds_ops,  table: pipeline_runs}
+  ops_table_counts:       {database: mcds_ops,  table: table_counts}
+  ops_dq_results:         {database: mcds_ops,  table: dq_results}
+  ops_mcds_validation:    {database: mcds_ops,  table: mcds_validation}
+  load_by_unit_campus:    {database: mcds_gold, table: student_load_by_unit_campus}
+  load_by_faculty:        {database: mcds_gold, table: student_load_by_faculty}
+  load_by_school:         {database: mcds_gold, table: student_load_by_school}
+  load_by_cohort:         {database: mcds_gold, table: student_load_by_cohort}
+  course_profile:         {database: mcds_gold, table: course_enrolment_profile}
+
+dashboards:
+  pipeline-ingestion:
+    name: "MCDS 1 - Ingestion and Bronze"
+    sheets:
+      - name: "Ingestion"
+        visuals:
+          - {type: kpi,   title: "Rows ingested (all tables)", dataset: ops_table_counts, measures: [{column: row_count, agg: SUM}]}
+          - {type: bar,   title: "Rows per table and stage", dataset: ops_table_counts, category: table_name, color: stage, measures: [{column: row_count, agg: SUM}]}
+          - {type: table, title: "Pipeline runs", dataset: ops_pipeline_runs,
+             group_by: [extract_date, stage, status], measures: [{column: rules_passed, agg: SUM}, {column: rules_failed, agg: SUM}, {column: rules_warned, agg: SUM}]}
+          - {type: table, title: "Landing and Bronze rule results", dataset: ops_dq_results,
+             group_by: [layer, rule_id, status], measures: [{column: violations, agg: SUM}]}
+  silver-conformance:
+    name: "MCDS 2 - Silver MCDS conformance"
+    sheets:
+      - name: "Conformance"
+        visuals:
+          - {type: kpi,   title: "Records validated against MCDS", dataset: ops_mcds_validation, measures: [{column: records_validated, agg: SUM}]}
+          - {type: kpi,   title: "Records failing MCDS", dataset: ops_mcds_validation, measures: [{column: records_invalid, agg: SUM}]}
+          - {type: bar,   title: "Records validated per MCDS entity", dataset: ops_mcds_validation, category: entity, measures: [{column: records_validated, agg: SUM}]}
+          - {type: table, title: "Data quality by rule", dataset: ops_dq_results,
+             group_by: [stage, rule_id, severity, status], measures: [{column: violations, agg: SUM}]}
+  student-load:
+    name: "MCDS 3 - Student load by unit (use case A)"
+    sheets:
+      - name: "Load overview"
+        visuals:
+          - {type: kpi, title: "EFTSL (HE coursework)", dataset: load_by_faculty, measures: [{column: eftsl, agg: SUM}]}
+          - {type: bar, title: "EFTSL by owning faculty", dataset: load_by_faculty, category: owner_faculty_code, color: delivery, measures: [{column: eftsl, agg: SUM}]}
+          - {type: bar, title: "EFTSL by campus", dataset: load_by_unit_campus, category: location_name, measures: [{column: eftsl, agg: SUM}]}
+          - {type: bar, title: "EFTSL by teaching period", dataset: load_by_unit_campus, category: calendar_type, measures: [{column: eftsl, agg: SUM}]}
+      - name: "Units and schools"
+        visuals:
+          - {type: table, title: "Students and load per unit and campus", dataset: load_by_unit_campus,
+             group_by: [calendar_type, unit_code, unit_name, location_name], measures: [{column: headcount, agg: SUM}, {column: eftsl, agg: SUM}]}
+          - {type: bar, title: "EFTSL by teaching school (teaching split)", dataset: load_by_school, category: teaching_org_name, measures: [{column: eftsl, agg: SUM}]}
+      - name: "Reconciliation"
+        visuals:
+          - {type: table, title: "Enrolments and load by cohort and decision", dataset: load_by_cohort,
+             group_by: [cohort, load_exclusion_reason], measures: [{column: unit_enrolments, agg: SUM}, {column: eftsl, agg: SUM}]}
+  course-enrolment:
+    name: "MCDS 4 - Course enrolment profile (use case B)"
+    sheets:
+      - name: "Courses"
+        visuals:
+          - {type: bar, title: "EFTSL by course", dataset: course_profile, category: course_code, measures: [{column: eftsl, agg: SUM}]}
+          - {type: bar, title: "Commencing students by fee category", dataset: course_profile, category: fee_category, measures: [{column: commencing_students, agg: SUM}]}
+          - {type: table, title: "Course profile", dataset: course_profile,
+             group_by: [course_code, attendance_type, fee_category], measures: [{column: enrolled_students, agg: SUM}, {column: commencing_students, agg: SUM}, {column: eftsl, agg: SUM}]}

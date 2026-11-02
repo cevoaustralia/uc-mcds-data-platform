@@ -1,0 +1,67 @@
+# University of Canberra AWS account - fill the placeholders when UC provides them.
+# GitHub Environment: uc-aws-mcds. Dedicated account => account_level_settings: true.
+# ---------------------------------------------------------------------------------------------
+# Deployment environment: everything account-specific lives here and ONLY here.
+# To deploy to another AWS account: copy this file (e.g. uc-aws-mcds.yaml), change the values, and run the
+# "deploy" GitHub Actions workflow with environment=<name> (or locally: scripts/render_mdaa.py --env <name>).
+# Values in <ANGLE_BRACKETS> are placeholders. In GitHub Actions they can be overridden by environment
+# variables MDAA_<KEY> (e.g. MDAA_AWS_ACCOUNT_ID) set as GitHub Environment variables.
+# Credentials are NEVER stored here: GitHub Actions assumes aws.deploy_role_arn via OIDC.
+# ---------------------------------------------------------------------------------------------
+# MDAA environment name (short: it is part of every resource name, keep <= 4 chars)
+environment: dev
+
+aws:
+  account_id: "<AWS_ACCOUNT_ID>"
+  region: "<AWS_REGION>"
+  deploy_role_arn: "<GITHUB_OIDC_DEPLOY_ROLE_ARN>"   # output RoleArn of bootstrap/github-oidc-deploy-role.yaml
+
+# Globally unique, lowercase, used in every bucket and resource name (e.g. "uc-mcds")
+organization: "<ORG_PREFIX>"
+
+notification_email: "<NOTIFICATION_EMAIL>"
+
+# Applied by MDAA to every resource. Activate these keys as cost allocation tags in Billing.
+# Empty values are dropped at render time.
+tags:
+  project: uc-mcds
+  engagement: cevo-uc-mcds-eba
+  environment: dev
+  owner: "<OWNER>"
+  cost-centre: "<COST_CENTRE>"
+  data-classification: "<DATA_CLASSIFICATION>"
+
+
+# Optional modules (true/false). Core platform (D1-D6) is always deployed.
+features:
+  # false in a SHARED account: skip modules that change account-wide settings (Lake Formation settings,
+  # Glue Catalog encryption, CloudTrail trail + audit bucket, Bedrock invocation logging) - see README.
+  account_level_settings: true
+  quicksight: true        # QuickSight account subscription + Athena data source + dashboards
+  bedrock_advisor: true   # Bedrock DQ advisor Lambda + Bedrock invocation logging
+  smus: false             # SageMaker Unified Studio domain (lineage graph + notebooks)
+  glue_dq_rulesets: false # Glue DQ rulesets on Silver/Gold tables - set true after the first pipeline run
+
+quicksight:
+  # QuickSight identity region (where users/groups live) - usually the deployment region
+  identity_region: "<QUICKSIGHT_IDENTITY_REGION>"
+  readers_group: "mcds-readers"
+  authors_group: "mcds-authors"
+  # Only needed when features.quicksight is true and the account has no QuickSight subscription yet
+  create_account_subscription: false
+  # Only used when create_account_subscription is true (MDAA creates the subscription with a VPC connection)
+  vpc_id: "<VPC_ID>"
+  subnet_id1: "<PRIVATE_SUBNET_ID_1>"
+  subnet_id2: "<PRIVATE_SUBNET_ID_2>"
+
+bedrock:
+  # Lowest-cost text model that suffices for summarising DQ results. Nova Micro runs In-Region in
+  # ap-southeast-2 (no cross-region routing). Enable model access once in the Bedrock console.
+  model_id: "<BEDROCK_MODEL_ID>"
+
+# Only needed when features.smus is true (SageMaker Unified Studio needs a VPC and IAM Identity Center)
+smus:
+  vpc_id: "<VPC_ID>"
+  subnet_id1: "<PRIVATE_SUBNET_ID_1>"
+  subnet_id2: "<PRIVATE_SUBNET_ID_2>"
+  data_team_sso_group_id: "<IDENTITY_CENTER_GROUP_ID>"

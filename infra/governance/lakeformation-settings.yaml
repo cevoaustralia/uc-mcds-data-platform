@@ -1,0 +1,5 @@
+# Lake Formation account settings (account-level module).
+# Data admins are LF administrators; database/table grants are created by infra/dataops/project.yaml.
+lakeFormationAdminRoles:
+  - id: generated-role-id:data-admin
+iamAllowedPrincipalsDefault: false

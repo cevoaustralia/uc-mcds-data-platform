@@ -1,0 +1,87 @@
+# ---------------------------------------------------------------------------------------------
+# One-time bootstrap per AWS account (run by an account administrator, not by the pipeline):
+# creates the GitHub OIDC identity provider (optional) and the role GitHub Actions assumes to deploy.
+#   aws cloudformation deploy --template-file bootstrap/github-oidc-deploy-role.yaml \
+#     --stack-name uc-mcds-github-oidc --capabilities CAPABILITY_NAMED_IAM \
+#     --parameter-overrides GitHubOrg=<GITHUB_ORG> GitHubRepo=<GITHUB_REPO> CreateOidcProvider=true
+# Then put the output RoleArn into config/environments/<env>.yaml (aws.deploy_role_arn) or the
+# GitHub Environment variable MDAA_AWS_DEPLOY_ROLE_ARN. The account must also be CDK-bootstrapped
+# (`npx cdk bootstrap aws://<ACCOUNT>/<REGION>`), as for any MDAA deployment.
+# Review the permissions before use: MDAA deploys IAM, S3, KMS, Glue, Lake Formation, Step Functions,
+# Lambda, CloudTrail, QuickSight and Bedrock settings, so the role uses the CDK bootstrap roles.
+# ---------------------------------------------------------------------------------------------
+AWSTemplateFormatVersion: "2010-09-09"
+Description: GitHub Actions OIDC deploy role for the UC MCDS data platform
+Parameters:
+  GitHubOrg: {Type: String}
+  GitHubRepo: {Type: String}
+  AllowedRef: {Type: String, Default: "*", Description: "Branch/environment filter, e.g. 'environment:dev' or 'ref:refs/heads/main'"}
+  CreateOidcProvider: {Type: String, AllowedValues: ["true", "false"], Default: "true"}
+  RoleName: {Type: String, Default: uc-mcds-github-deploy}
+Conditions:
+  CreateProvider: !Equals [!Ref CreateOidcProvider, "true"]
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      MaxSessionDuration: 7200
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals: {"token.actions.githubusercontent.com:aud": sts.amazonaws.com}
+              StringLike: {"token.actions.githubusercontent.com:sub": !Sub "repo:${GitHubOrg}/${GitHubRepo}:${AllowedRef}"}
+      Policies:
+        - PolicyName: mdaa-deploy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: AssumeCdkBootstrapRoles
+                Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-*
+              - Sid: ReadMdaaParameters
+                Effect: Allow
+                Action: [ssm:GetParameter, ssm:GetParameters, ssm:GetParametersByPath]
+                Resource: !Sub arn:${AWS::Partition}:ssm:*:${AWS::AccountId}:parameter/*
+              - Sid: SyncPipelineConfigAndExtracts
+                Effect: Allow
+                Action: [s3:ListBucket, s3:GetObject, s3:PutObject, s3:DeleteObject]
+                Resource: "*"
+              - Sid: KmsForDataLake
+                Effect: Allow
+                Action: [kms:Encrypt, kms:Decrypt, kms:GenerateDataKey, kms:DescribeKey]
+                Resource: "*"
+              - Sid: RunPipeline
+                Effect: Allow
+                Action: [states:ListStateMachines, states:StartExecution, states:DescribeExecution]
+                Resource: "*"
+              - Sid: QuickSightAssets
+                Effect: Allow
+                Action: [quicksight:ListDataSources, quicksight:CreateDataSet, quicksight:UpdateDataSet,
+                         quicksight:PassDataSource, quicksight:PassDataSet, quicksight:CreateDashboard,
+                         quicksight:UpdateDashboard, quicksight:UpdateDashboardPublishedVersion,
+                         quicksight:DescribeDataSet, quicksight:DescribeDashboard]
+                Resource: "*"
+              - Sid: GlueSchemaRead
+                Effect: Allow
+                Action: [glue:GetTable, glue:GetDatabase]
+                Resource: "*"
+              - Sid: Identity
+                Effect: Allow
+                Action: sts:GetCallerIdentity
+                Resource: "*"
+Outputs:
+  RoleArn:
+    Value: !GetAtt DeployRole.Arn

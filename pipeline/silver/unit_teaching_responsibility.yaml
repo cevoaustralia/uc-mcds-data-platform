@@ -1,0 +1,17 @@
+# Bridge: unit version x teaching org unit with percentage split (MCDS unitOfLearning.responsibleOrganisations).
+# Conformed helper table (no standalone MCDS entity) - used for the school-level load split.
+entity: unit_teaching_responsibility
+description: "Teaching responsibility split of each unit version across org units (percent)"
+primary_key: [unit_of_learning_id, organisation_id]
+from: "bronze.teaching_responsibility tr"
+joins:
+  - "LEFT JOIN silver.organisation o ON o.organisation_code = tr.ORG_UNIT_CD AND o.start_date = tr.OU_START_DT"
+columns:
+  unit_of_learning_id: {expr: "concat(tr.UNIT_CD, '.', CAST(tr.VERSION_NUMBER AS STRING))", source: "TEACHING_RESPONSIBILITY.UNIT_CD + VERSION_NUMBER"}
+  organisation_id:     {expr: "concat(tr.ORG_UNIT_CD, '|', date_format(tr.OU_START_DT, 'yyyy-MM-dd'))", source: "TEACHING_RESPONSIBILITY.ORG_UNIT_CD + OU_START_DT"}
+  organisation_code:   {expr: "tr.ORG_UNIT_CD", source: "TEACHING_RESPONSIBILITY.ORG_UNIT_CD"}
+  organisation_name:   {expr: "o.organisation_name", source: "ORG_UNIT.DESCRIPTION"}
+  share:               {expr: "CAST(tr.PERCENTAGE AS DOUBLE) / 100", source: "TEACHING_RESPONSIBILITY.PERCENTAGE / 100"}
+foreign_keys:
+  unit_of_learning_id: unit_of_learning.unit_of_learning_id
+  organisation_id: organisation.organisation_id

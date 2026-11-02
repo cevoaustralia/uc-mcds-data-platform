@@ -1,0 +1,60 @@
+# ---------------------------------------------------------------------------------------------
+# UC MCDS pipeline - global settings (account-agnostic; no account IDs, bucket names or ARNs here)
+#
+# The whole pipeline is driven by the YAML files under pipeline/:
+#   sources/<system>.yaml      source tables: file, natural key, column types      (Bronze)
+#   rules/*.yaml               business rules referenced as ${rules.<file>.<path>}
+#   crosswalks/*.yaml          code mappings, registered as views xw_<name>
+#   silver/<entity>.yaml       one MCDS entity per file                            (Silver)
+#   gold/<report>.yaml         one report / dataset per file                       (Gold)
+#   dq/<layer>.yaml            data quality rules per layer
+# Adding an entity or report = adding a YAML file. No code change, no infrastructure change.
+# Buckets/databases are resolved at run time from job arguments (set by MDAA from SSM).
+# ---------------------------------------------------------------------------------------------
+version: 1
+
+source_system: callista
+
+landing:
+  # relative to the landing bucket (AWS) or data/landing (local)
+  path_pattern: "callista/extract_date={extract_date}/{file}"
+  csv:
+    header: true
+    delimiter: ","
+    quote: '"'
+    escape: '"'
+    encoding: "UTF-8"
+    multiLine: true
+
+layers:
+  bronze: {database: mcds_bronze, prefix: callista}
+  silver: {database: mcds_silver, prefix: mcds}
+  gold:   {database: mcds_gold,   prefix: analytics}
+  ops:    {database: mcds_ops,    prefix: ops}
+
+# Lineage identifiers (MCDS common-types entityUniqueID). Fixed configuration, not data.
+# CONFIRM WITH UC: identifier type and value used for the University in MCDS records.
+identity:
+  organisation_unique_id:
+    organisationUniqueIDType: "ABN"
+    organisationID: "81633873422"
+    confirmed: false
+  system_id: "CALLISTA-SISPROD"
+
+mcds:
+  version: "2.1.1"
+  # Compiled intermediate bundle (scripts/compile_mcds_bundle.py): only the definitions this pipeline
+  # uses, cross-file $refs resolved, provenance + source checksums stamped in. A package folder also works.
+  # Local runs: path relative to repo root. AWS: the jobs receive the S3 location via --MCDS_SCHEMA_URI.
+  schema_root: "mcds/compiled/mcds-v2.1.1-uc-bundle.json"
+  # max records per entity rendered to MCDS JSON and validated (0 = all)
+  validation_sample: 0
+  fail_on_invalid: true
+
+reporting:
+  # MCDS Reporting Framework output (reportDefinition + factData per Gold report with an mcds_report block)
+  region: AU
+  definition_version: "2026.1"
+  responsibilities:
+    - {name: "UC Data, Analytics & Insights", role: "Data owner"}
+    - {name: "Cevo Data Engineering (EBA)", role: "Data producer"}

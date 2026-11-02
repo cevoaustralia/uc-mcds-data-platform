@@ -1,0 +1,24 @@
+# MCDS programmeOfLearningEnrolment (student-management.schema.json) - a student's course attempt.
+entity: programme_of_learning_enrolment
+description: "MCDS programmeOfLearningEnrolment - one row per Callista course attempt of a student in the extract"
+mcds: {schema: student-management.schema.json, definition: programmeOfLearningEnrolment}
+primary_key: [programme_of_learning_enrolment_id]
+classification: confidential
+from: "bronze.student_course_attempt sca"
+# Extract holds full history for the 2026 courses; keep only people in scope (those with a person record)
+where: "EXISTS (SELECT 1 FROM silver.person p WHERE p.person_id = CAST(sca.PERSON_ID AS STRING))"
+columns:
+  programme_of_learning_enrolment_id: {expr: "concat(CAST(sca.PERSON_ID AS STRING), '|', sca.COURSE_CD)", mcds: programmeOfLearningEnrolmentID, source: "STUDENT_COURSE_ATTEMPT.PERSON_ID + COURSE_CD"}
+  student_id:          {expr: "CAST(sca.PERSON_ID AS STRING)", mcds: studentID, source: "STUDENT_COURSE_ATTEMPT.PERSON_ID"}
+  course_code:         {expr: "sca.COURSE_CD", mcds: x-additional.courseCode, source: "STUDENT_COURSE_ATTEMPT.COURSE_CD"}
+  course_version:      {expr: "sca.VERSION_NUMBER", mcds: x-additional.courseVersion, source: "STUDENT_COURSE_ATTEMPT.VERSION_NUMBER"}
+  enrolment_status:    {expr: "sca.COURSE_ATTEMPT_STATUS", mcds: enrolmentStatus, source: "STUDENT_COURSE_ATTEMPT.COURSE_ATTEMPT_STATUS"}
+  start_date:          {expr: "sca.COMMENCEMENT_DT", mcds: startDate, source: "STUDENT_COURSE_ATTEMPT.COMMENCEMENT_DT"}
+  commencement_year:   {expr: "year(sca.COMMENCEMENT_DT)", source: "year(STUDENT_COURSE_ATTEMPT.COMMENCEMENT_DT)"}
+  attendance_type:     {expr: "sca.ATTENDANCE_TYPE", mcds: x-additional.attendanceType, source: "STUDENT_COURSE_ATTEMPT.ATTENDANCE_TYPE"}
+  attendance_mode:     {expr: "sca.ATTENDANCE_MODE", mcds: x-additional.attendanceMode, source: "STUDENT_COURSE_ATTEMPT.ATTENDANCE_MODE"}
+  fee_category:        {expr: "sca.FEE_CAT", mcds: x-additional.feeCategory, source: "STUDENT_COURSE_ATTEMPT.FEE_CAT"}
+  course_location_id:  {expr: "sca.LOCATION_CD", mcds: x-additional.courseLocation, source: "STUDENT_COURSE_ATTEMPT.LOCATION_CD"}
+  discontinued_date:   {expr: "sca.DISCONTINUED_DT", mcds: endDate, source: "STUDENT_COURSE_ATTEMPT.DISCONTINUED_DT"}
+foreign_keys:
+  student_id: student.student_id

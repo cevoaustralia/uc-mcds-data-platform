@@ -1,0 +1,63 @@
+# Deploy the platform to the AWS account of a GitHub Environment (manual trigger).
+# Account values: config/environments/<env>.yaml, overridable by GitHub Environment variables MDAA_*
+# (e.g. MDAA_AWS_ACCOUNT_ID, MDAA_AWS_REGION, MDAA_ORGANIZATION, MDAA_AWS_DEPLOY_ROLE_ARN).
+# Unset or empty variables fall back to the environment file.
+# Credentials: GitHub OIDC -> aws.deploy_role_arn (bootstrap/github-oidc-deploy-role.yaml). No secrets stored.
+name: deploy
+on:
+  workflow_dispatch:
+    inputs:
+      environment: {description: "config/environments/<name>.yaml", required: true, default: cevo-aws-mcds}
+      modules: {description: "optional MDAA module filter (comma separated, e.g. jobs,orchestration)", required: false, default: ""}
+      action: {description: "synth | diff | deploy", required: true, default: diff}
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      ENV_NAME: ${{ inputs.environment }}
+      MDAA_AWS_ACCOUNT_ID: ${{ vars.MDAA_AWS_ACCOUNT_ID }}
+      MDAA_AWS_REGION: ${{ vars.MDAA_AWS_REGION }}
+      MDAA_AWS_DEPLOY_ROLE_ARN: ${{ vars.MDAA_AWS_DEPLOY_ROLE_ARN }}
+      MDAA_ORGANIZATION: ${{ vars.MDAA_ORGANIZATION }}
+      MDAA_NOTIFICATION_EMAIL: ${{ vars.MDAA_NOTIFICATION_EMAIL }}
+      MDAA_QUICKSIGHT_IDENTITY_REGION: ${{ vars.MDAA_QUICKSIGHT_IDENTITY_REGION }}
+      MDAA_BEDROCK_MODEL_ID: ${{ vars.MDAA_BEDROCK_MODEL_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: npm ci && pip install PyYAML==6.0.2 jsonschema==4.23.0 boto3
+      - name: Render and validate (fails if any placeholder is left)
+        run: |
+          python scripts/render_mdaa.py --env "$ENV_NAME"
+          python scripts/validate_infra.py
+          echo "AWS_REGION=$(python scripts/env_value.py --env "$ENV_NAME" aws.region)" >> "$GITHUB_ENV"
+          ROLE=$(python scripts/env_value.py --env "$ENV_NAME" aws.deploy_role_arn)
+          case "$ROLE" in "<"*) echo "::error::aws.deploy_role_arn is a placeholder - set it or the MDAA_AWS_DEPLOY_ROLE_ARN variable"; exit 1;; esac
+          echo "ROLE_ARN=$ROLE" >> "$GITHUB_ENV"
+          echo "ORG=$(python scripts/env_value.py --env "$ENV_NAME" organization)" >> "$GITHUB_ENV"
+          echo "QS=$(python scripts/env_value.py --env "$ENV_NAME" features.quicksight)" >> "$GITHUB_ENV"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: MDAA ${{ inputs.action }}
+        run: |
+          FILTER=""; [ -n "${{ inputs.modules }}" ] && FILTER="-m ${{ inputs.modules }}"
+          npx mdaa -a "${{ inputs.action }}" $FILTER
+      - name: Sync pipeline config to the artifacts bucket (entities/reports/rules are read from here)
+        if: inputs.action == 'deploy'
+        run: |
+          BUCKET=$(aws ssm get-parameter --name "/$ORG/datalake/datalake/bucket/artifacts/name" --query Parameter.Value --output text)
+          aws s3 sync pipeline/ "s3://$BUCKET/pipeline/" --delete --exclude "*.md"
+          aws s3 ls "s3://$BUCKET/mcds/mcds-v2.1.1-uc-bundle.json" >/dev/null \
+            || echo "::warning::MCDS schema bundle not found in s3://$BUCKET/mcds/ - run scripts/upload_mcds_bundle.sh once (licensed package, not in git)"
+      - name: QuickSight datasets and dashboards
+        if: inputs.action == 'deploy' && env.QS == 'true'
+        run: python scripts/deploy_quicksight.py --env "$ENV_NAME" || echo "::warning::QuickSight assets need the Gold tables - re-run after the first pipeline run"

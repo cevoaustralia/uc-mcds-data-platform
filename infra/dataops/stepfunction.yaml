@@ -1,0 +1,55 @@
+# Orchestration: landing -> bronze -> silver -> gold, then (optionally) the Bedrock DQ advisor.
+# Start input (GitHub Actions "run-pipeline" workflow or console):
+#   {"extract_date": "2026-10-26", "run_advisor": false, "advisor_function": ""}
+projectName: project
+stepfunctionDefinitions:
+  - stateMachineName: mcds-pipeline
+    stateMachineType: STANDARD
+    stateMachineExecutionRole: ssm:/{{org}}/shared/generated-role/orchestration/arn
+    logGroupRetentionDays: 90
+    logExecutionData: false
+    rawStepFunctionDef:
+      {
+        "Comment": "UC MCDS pipeline: Callista extract to MCDS Silver and use-case Gold datasets",
+        "StartAt": "Bronze",
+        "States": {
+          "Bronze": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::glue:startJobRun.sync",
+            "Parameters": {"JobName": "project:job/name/landing-to-bronze",
+                           "Arguments": {"--EXTRACT_DATE.$": "$.extract_date"}},
+            "ResultPath": "$.bronze",
+            "Next": "Silver"
+          },
+          "Silver": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::glue:startJobRun.sync",
+            "Parameters": {"JobName": "project:job/name/bronze-to-silver",
+                           "Arguments": {"--EXTRACT_DATE.$": "$.extract_date"}},
+            "ResultPath": "$.silver",
+            "Next": "Gold"
+          },
+          "Gold": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::glue:startJobRun.sync",
+            "Parameters": {"JobName": "project:job/name/silver-to-gold",
+                           "Arguments": {"--EXTRACT_DATE.$": "$.extract_date"}},
+            "ResultPath": "$.gold",
+            "Next": "Advisor?"
+          },
+          "Advisor?": {
+            "Type": "Choice",
+            "Choices": [{"Variable": "$.run_advisor", "BooleanEquals": true, "Next": "DQ Advisor"}],
+            "Default": "Done"
+          },
+          "DQ Advisor": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {"FunctionName.$": "$.advisor_function",
+                           "Payload": {"extract_date.$": "$.extract_date"}},
+            "ResultPath": "$.advisor",
+            "Next": "Done"
+          },
+          "Done": {"Type": "Succeed"}
+        }
+      }

@@ -1,0 +1,61 @@
+# KMS-encrypted S3 data lake (MDAA @aws-mdaa/datalake).
+#   landing    Callista CSV extracts as delivered (callista/extract_date=YYYY-MM-DD/<table>.csv)
+#   bronze     typed Parquet copy of each extract (partitioned by extract_date)
+#   silver     MCDS-conformed entities
+#   gold       curated reporting datasets, ops tables, MCDS Reporting Framework files
+#   artifacts  pipeline config (pipeline/) and compiled MCDS schema bundle, synced by GitHub Actions
+roles:
+  DataAdmin:
+    - id: ssm:/{{org}}/shared/generated-role/data-admin/id
+  DataEngineer:
+    - id: ssm:/{{org}}/shared/generated-role/data-engineer/id
+  DataAnalyst:
+    - id: ssm:/{{org}}/shared/generated-role/data-analyst/id
+  GlueEtl:
+    - id: ssm:/{{org}}/shared/generated-role/glue-etl/id
+  DqAdvisor:
+    - id: ssm:/{{org}}/shared/generated-role/dq-advisor/id
+  QuickSight:
+    - arn: arn:{{partition}}:iam::{{account}}:role/service-role/aws-quicksight-service-role-v0
+      immutable: true
+accessPolicies:
+  Root:
+    rule:
+      prefix: /
+      ReadWriteSuperRoles: [DataAdmin]
+  PipelineWrite:
+    rule:
+      prefix: /
+      ReadWriteRoles: [GlueEtl, DataEngineer]
+  AnalyticsRead:
+    rule:
+      prefix: /
+      ReadRoles: [DataAnalyst, QuickSight, DqAdvisor]
+lifecycleConfigurations:
+  LandingRetention:
+    ExpireExtracts:
+      Status: Enabled
+      Prefix: callista/
+      Transitions:
+        - Days: 90
+          StorageClass: GLACIER_IR
+      ExpirationDays: 730
+buckets:
+  landing:
+    accessPolicies: [Root, PipelineWrite]
+    lifecycleConfiguration: LandingRetention
+  bronze:
+    accessPolicies: [Root, PipelineWrite]
+    lakeFormationLocations:
+      callista: {prefix: callista}
+  silver:
+    accessPolicies: [Root, PipelineWrite]
+    lakeFormationLocations:
+      mcds: {prefix: mcds}
+  gold:
+    accessPolicies: [Root, PipelineWrite, AnalyticsRead]
+    lakeFormationLocations:
+      analytics: {prefix: analytics}
+      ops: {prefix: ops}
+  artifacts:
+    accessPolicies: [Root, PipelineWrite]

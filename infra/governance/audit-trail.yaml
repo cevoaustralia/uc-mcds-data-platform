@@ -1,0 +1,5 @@
+# CloudTrail trail incl. S3 data events on the data lake (who read/wrote which object)
+trail:
+  cloudTrailAuditBucketName: ssm:/{{org}}/shared/audit/bucket/name
+  cloudTrailAuditKmsKeyArn: ssm:/{{org}}/shared/audit/kms/arn
+  includeManagementEvents: true

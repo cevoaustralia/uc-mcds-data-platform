@@ -1,0 +1,12 @@
+# Athena workgroup for analysts, QuickSight and the demo queries (athena/queries/*.sql)
+dataAdminRoles:
+  - id: ssm:/{{org}}/shared/generated-role/data-admin/id
+athenaUserRoles:
+  - id: ssm:/{{org}}/shared/generated-role/data-engineer/id
+  - id: ssm:/{{org}}/shared/generated-role/data-analyst/id
+  - id: ssm:/{{org}}/shared/generated-role/dq-advisor/id
+  - arn: arn:{{partition}}:iam::{{account}}:role/service-role/aws-quicksight-service-role-v0
+    immutable: true
+# Cost guard: cancel any single query scanning more than 10 GB (MCDS Gold tables are a few MB)
+workgroupConfiguration:
+  bytesScannedCutoffPerQuery: 10737418240

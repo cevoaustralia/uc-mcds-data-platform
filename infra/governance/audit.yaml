@@ -1,0 +1,3 @@
+# Encrypted bucket for CloudTrail audit logs (D1 audit, D4 auditable data management)
+readRoles:
+  - id: generated-role-id:data-admin

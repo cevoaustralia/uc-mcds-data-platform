@@ -1,3 +1,0 @@
-# @aws-mdaa/glue-catalog - account-level Glue Data Catalog encryption with a KMS CMK (SOW D1)
-# No cross-account consumers in the EBA.
-consumerAccounts: {}

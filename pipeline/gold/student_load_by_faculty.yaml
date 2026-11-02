@@ -1,0 +1,17 @@
+# USE CASE A: load by owning faculty (UNIT_VERSION.OWNER_ORG_UNIT_CD) - matches UC dashboard 'Unit Faculty'.
+report: student_load_by_faculty
+use_case: A
+description: "Headcount and EFTSL per owning faculty x campus delivery x teaching period (HE coursework)"
+from: "gold.fact_student_load f"
+where: "f.counts_as_load AND f.cohort IN (${rules.load.load_cohorts_in_scope})"
+dimensions:
+  academic_year: "f.academic_year"
+  calendar_type: "f.calendar_type"
+  owner_faculty_code: "f.owner_faculty_code"
+  delivery: "f.delivery"
+attributes:
+  owner_faculty_name: "max(f.owner_faculty_name)"
+measures:
+  headcount: "COUNT(DISTINCT f.student_id)"
+  eftsl: "CAST(SUM(f.eftsl) AS DECIMAL(18,3))"
+  units: "COUNT(DISTINCT f.unit_code)"

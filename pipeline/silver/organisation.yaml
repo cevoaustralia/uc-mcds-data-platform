@@ -1,0 +1,19 @@
+# MCDS organisation (parties.schema.json#/$defs/organisation) - faculties, schools, partners.
+entity: organisation
+description: "MCDS organisation - one row per Callista ORG_UNIT (code + start date)"
+mcds: {schema: parties.schema.json, definition: organisation, unique_ids_field: organisationUniqueIDs, unique_ids_type: organisation}
+primary_key: [organisation_id]
+from: "bronze.org_unit o"
+where: "o.ORG_UNIT_CD IS NOT NULL"
+columns:
+  organisation_id:   {expr: "concat(o.ORG_UNIT_CD, '|', date_format(o.START_DT, 'yyyy-MM-dd'))", mcds: organisationID, source: "ORG_UNIT.ORG_UNIT_CD + START_DT"}
+  organisation_code: {expr: "o.ORG_UNIT_CD", mcds: organisationCode, source: "ORG_UNIT.ORG_UNIT_CD"}
+  organisation_name: {expr: "o.DESCRIPTION", mcds: organisationName, source: "ORG_UNIT.DESCRIPTION"}
+  organisation_level:
+    expr: "CASE WHEN o.ORG_UNIT_CD LIKE 'FCY-%' THEN 'FACULTY' WHEN o.MEMBER_TYPE = 'DISCIPLINE' THEN 'SCHOOL' ELSE o.MEMBER_TYPE END"
+    mcds: x-additional.organisationLevel
+    source: "ORG_UNIT.ORG_UNIT_CD / MEMBER_TYPE"
+  org_type:          {expr: "o.ORG_TYPE", mcds: x-additional.callistaOrgType, source: "ORG_UNIT.ORG_TYPE"}
+  status:            {expr: "o.ORG_STATUS", mcds: status, source: "ORG_UNIT.ORG_STATUS"}
+  start_date:        {expr: "o.START_DT", source: "ORG_UNIT.START_DT"}
+  end_date:          {expr: "o.END_DT", source: "ORG_UNIT.END_DT"}

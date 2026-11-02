@@ -1,0 +1,4 @@
+# Overlay merged into project.yaml only when features.account_level_settings is true
+# (our glue-catalog module owns the account's Glue Catalog KMS key). In a shared account the
+# catalog encryption belongs to the account owner and this overlay is not applied.
+glueCatalogKmsKeyArn: ssm:/{{org}}/shared/glue-catalog/kms/arn

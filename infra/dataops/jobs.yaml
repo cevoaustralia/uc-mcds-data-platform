@@ -1,0 +1,72 @@
+# Glue ETL jobs (MDAA @aws-mdaa/dataops-job). One generic script, three stages.
+# Behaviour comes from pipeline/ YAML synced to s3://<artifacts>/pipeline/ and the MCDS bundle at
+# s3://<artifacts>/mcds/ - new entities/reports need no redeploy. Job arguments merge with the template's.
+projectName: project
+templates:
+  mcds-stage:
+    executionRoleArn: ssm:/{{org}}/shared/generated-role/glue-etl/arn
+    description: UC MCDS pipeline stage
+    command:
+      name: glueetl
+      pythonVersion: "3"
+      scriptLocation: ../../etl/jobs/run_stage.py
+    glueVersion: "5.0"
+    workerType: G.1X
+    numberOfWorkers: 2
+    maxRetries: 0
+    timeout: 30
+    executionProperty:
+      maxConcurrentRuns: 1
+    continuousLogging:
+      logGroupRetentionDays: 90
+    additionalScripts:
+      - ../../etl/common/mcds_config.py
+      - ../../etl/common/mcds_store.py
+      - ../../etl/common/mcds_engine.py
+      - ../../etl/common/mcds_dq.py
+      - ../../etl/common/mcds_json.py
+      - ../../etl/common/mcds_reporting.py
+      - ../../etl/common/mcds_run.py
+    defaultArguments:
+      --enable-glue-datacatalog: "true"
+      --enable-metrics: "true"
+      --enable-continuous-cloudwatch-log: "true"
+      --enable-observability-metrics: "true"
+      --additional-python-modules: "jsonschema==4.23.0,referencing==0.35.1,PyYAML==6.0.2"
+      --ARTIFACTS_BUCKET: ssm:/{{org}}/datalake/datalake/bucket/artifacts/name
+      --LANDING_BUCKET: ssm:/{{org}}/datalake/datalake/bucket/landing/name
+      --BRONZE_BUCKET: ssm:/{{org}}/datalake/datalake/bucket/bronze/name
+      --SILVER_BUCKET: ssm:/{{org}}/datalake/datalake/bucket/silver/name
+      --GOLD_BUCKET: ssm:/{{org}}/datalake/datalake/bucket/gold/name
+jobs:
+  landing-to-bronze:
+    template: mcds-stage
+    executionRoleArn: ssm:/{{org}}/shared/generated-role/glue-etl/arn
+    description: "Callista CSV extract (landing) -> Bronze typed Parquet + landing/bronze DQ"
+    command:
+      name: glueetl
+      pythonVersion: "3"
+      scriptLocation: ../../etl/jobs/run_stage.py
+    defaultArguments:
+      --STAGE: bronze
+  bronze-to-silver:
+    template: mcds-stage
+    executionRoleArn: ssm:/{{org}}/shared/generated-role/glue-etl/arn
+    description: "Bronze -> Silver MCDS entities + lineage + DQ + MCDS conformance"
+    command:
+      name: glueetl
+      pythonVersion: "3"
+      scriptLocation: ../../etl/jobs/run_stage.py
+    numberOfWorkers: 3
+    defaultArguments:
+      --STAGE: silver
+  silver-to-gold:
+    template: mcds-stage
+    executionRoleArn: ssm:/{{org}}/shared/generated-role/glue-etl/arn
+    description: "Silver -> Gold use case datasets + reconciliation DQ + MCDS Reporting Framework files"
+    command:
+      name: glueetl
+      pythonVersion: "3"
+      scriptLocation: ../../etl/jobs/run_stage.py
+    defaultArguments:
+      --STAGE: gold

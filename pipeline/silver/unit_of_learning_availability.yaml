@@ -1,0 +1,28 @@
+# MCDS unitOfLearningAvailability (curriculum.schema.json) - a unit offered in a learning period at a location.
+# Built from the unit enrolment extract: UOO_ID uniquely identifies unit+version+period+location+class (verified).
+entity: unit_of_learning_availability
+description: "MCDS unitOfLearningAvailability - one row per Callista unit offering option (UOO_ID)"
+mcds:
+  schema: curriculum.schema.json
+  definition: unitOfLearningAvailability
+  unique_ids_field: unitOfLearningAvailabilityUniqueIDs
+  embed:
+    unitOfLearning: {entity: unit_of_learning, key: unit_of_learning_id}
+    learningPeriod: {entity: learning_period, key: learning_period_id}
+    location:       {entity: location, key: location_id}
+primary_key: [unit_of_learning_availability_id]
+from: >-
+  (SELECT UOO_ID, first(UNIT_CD) UNIT_CD, first(VERSION_NUMBER) VERSION_NUMBER, first(CAL_TYPE) CAL_TYPE,
+          first(CI_SEQUENCE_NUMBER) CI_SEQUENCE_NUMBER, first(LOCATION_CD) LOCATION_CD, first(UNIT_CLASS) UNIT_CLASS
+   FROM bronze.student_unit_attempt GROUP BY UOO_ID) uoo
+columns:
+  unit_of_learning_availability_id: {expr: "CAST(uoo.UOO_ID AS STRING)", mcds: unitOfLearningAvailabilityID, source: "STUDENT_UNIT_ATTEMPT.UOO_ID"}
+  unit_of_learning_id: {expr: "concat(uoo.UNIT_CD, '.', CAST(uoo.VERSION_NUMBER AS STRING))", source: "STUDENT_UNIT_ATTEMPT.UNIT_CD + VERSION_NUMBER"}
+  learning_period_id:  {expr: "concat(uoo.CAL_TYPE, '|', CAST(uoo.CI_SEQUENCE_NUMBER AS STRING))", source: "STUDENT_UNIT_ATTEMPT.CAL_TYPE + CI_SEQUENCE_NUMBER"}
+  location_id:         {expr: "uoo.LOCATION_CD", source: "STUDENT_UNIT_ATTEMPT.LOCATION_CD"}
+  unit_class:          {expr: "uoo.UNIT_CLASS", mcds: x-additional.unitClass, source: "STUDENT_UNIT_ATTEMPT.UNIT_CLASS"}
+  availability_type:   {expr: "'Full Unit'", mcds: unitOfLearningAvailabilityType, source: "constant"}
+foreign_keys:
+  unit_of_learning_id: unit_of_learning.unit_of_learning_id
+  learning_period_id: learning_period.learning_period_id
+  location_id: location.location_id

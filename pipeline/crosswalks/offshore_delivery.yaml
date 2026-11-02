@@ -1,0 +1,12 @@
+# Code crosswalk - view xw_offshore_delivery(source_code, delivery)
+name: offshore_delivery
+description: Callista LOCATION.GOVT_OFFSHR_DLVRY_CD -> onshore/offshore campus attribute (00 onshore, 02 offshore partner
+  delivery). Null defaults to ONSHORE in the location entity.
+confirmed: true
+columns:
+- delivery
+rows:
+  '00':
+    delivery: ONSHORE
+  '02':
+    delivery: OFFSHORE

@@ -1,0 +1,18 @@
+# USE CASE A: load split to teaching schools by TEACHING_RESPONSIBILITY percentage (staffing view).
+# EFTSL is split by share and is additive; headcount is NOT split (a student counts once per school).
+report: student_load_by_school
+use_case: A
+description: "EFTSL split to teaching org units by teaching-responsibility percentage, per teaching period"
+from: "gold.fact_student_load f"
+joins:
+  - "JOIN silver.unit_teaching_responsibility t ON t.unit_of_learning_id = concat(f.unit_code, '.', f.unit_version)"
+where: "f.counts_as_load AND f.cohort IN (${rules.load.load_cohorts_in_scope})"
+dimensions:
+  academic_year: "f.academic_year"
+  calendar_type: "f.calendar_type"
+  teaching_org_code: "t.organisation_code"
+attributes:
+  teaching_org_name: "max(t.organisation_name)"
+measures:
+  headcount_unsplit: "COUNT(DISTINCT f.student_id)"
+  eftsl: "CAST(SUM(f.eftsl * t.share) AS DECIMAL(18,3))"

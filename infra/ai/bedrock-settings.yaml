@@ -1,0 +1,3 @@
+# Bedrock model invocation logging (audit of every advisor prompt/response)
+enableAuditLoggingToS3: true
+enableAuditLoggingToCloudwatch: true

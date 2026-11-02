@@ -1,8 +1,0 @@
-# @aws-mdaa/athena-workgroup - analyst workgroup with KMS-encrypted results bucket (SOW D1, D5)
-dataAdminRoles:
-  - id: generated-role-id:data-admin
-athenaUserRoles:
-  - id: generated-role-id:data-analyst
-  - id: generated-role-id:data-engineer
-workgroupConfiguration:
-  bytesScannedCutoffPerQuery: 10737418240   # 10 GB per query

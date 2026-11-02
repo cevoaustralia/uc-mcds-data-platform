@@ -1,0 +1,9 @@
+# Local development, tests and CI (Glue 5.0 provides PySpark 3.5 at run time)
+pyspark==3.5.4
+PyYAML==6.0.2
+jsonschema==4.23.0
+referencing==0.35.1
+pyarrow==17.0.0
+pandas==2.2.3
+pytest==8.3.3
+boto3==1.35.36

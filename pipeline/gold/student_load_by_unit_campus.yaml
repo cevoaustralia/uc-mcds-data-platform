@@ -1,0 +1,31 @@
+# USE CASE A (core): "How many students, and how much load, in each unit - per campus and teaching period?"
+report: student_load_by_unit_campus
+use_case: A
+description: "Headcount and EFTSL per unit x campus x teaching period (HE coursework, load-bearing enrolments)"
+from: "gold.fact_student_load f"
+where: "f.counts_as_load AND f.cohort IN (${rules.load.load_cohorts_in_scope})"
+dimensions:
+  academic_year: "f.academic_year"
+  calendar_type: "f.calendar_type"
+  unit_code: "f.unit_code"
+  location_id: "f.location_id"
+attributes:
+  unit_name: "max(f.unit_name)"
+  owner_faculty_code: "max(f.owner_faculty_code)"
+  location_name: "max(f.location_name)"
+  delivery: "max(f.delivery)"
+measures:
+  headcount: "COUNT(DISTINCT f.student_id)"
+  eftsl: "CAST(SUM(f.eftsl) AS DECIMAL(18,3))"
+  unit_enrolments: "COUNT(*)"
+mcds_report:
+  reportDefinitionId: "AU.UC.StudentLoadByUnitAndCampus"
+  label: "Student load by unit of learning and campus"
+  # one factData file per reporting period = distinct values of these columns (dates from silver.learning_period)
+  period_columns: [academic_year, calendar_type]
+  dimensions:
+    dim.unit:   {member: unit_code, label: unit_name, type: "Unit Of Learning"}
+    dim.campus: {member: location_id, label: location_name, type: "Campus"}
+  measures:
+    HEADCOUNT: {column: headcount, label: "Headcount (distinct students)", measureType: students, unit: students, decimals: 0}
+    EFTSL:     {column: eftsl, label: "Equivalent full-time student load (EFTSL)", measureType: load, unit: EFTSL, decimals: 3}

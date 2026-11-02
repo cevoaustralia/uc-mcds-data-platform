@@ -1,0 +1,13 @@
+# MCDS person (parties.schema.json#/$defs/person): identity held once per human.
+entity: person
+description: "MCDS person - one row per Callista PERSON with a unit enrolment in the extract (identity fields masked)"
+mcds: {schema: parties.schema.json, definition: person, unique_ids_field: personUniqueIDs}
+primary_key: [person_id]
+classification: confidential
+from: "bronze.person p"
+columns:
+  person_id:      {expr: "CAST(p.PERSON_ID AS STRING)", mcds: personID, source: "PERSON.PERSON_ID (masked hash)"}
+  last_name:      {expr: "p.SURNAME", mcds: personName.lastName, pii: true, source: "PERSON.SURNAME"}
+  first_name:     {expr: "p.GIVEN_NAMES", mcds: personName.firstName, pii: true, source: "PERSON.GIVEN_NAMES"}
+  sex_code:       {expr: "p.SEX", mcds: x-additional.callistaSex, pii: true, source: "PERSON.SEX"}
+  birth_year:     {expr: "year(p.BIRTH_DT)", mcds: x-additional.birthYear, pii: true, source: "year(PERSON.BIRTH_DT)"}

@@ -1,0 +1,21 @@
+# MCDS learningPeriod (time.schema.json#/$defs/learningPeriod) - teaching periods.
+entity: learning_period
+description: "MCDS learningPeriod - one row per Callista teaching calendar instance with cohort classification"
+mcds: {schema: time.schema.json, definition: learningPeriod, unique_ids_field: learningPeriodUniqueIDs}
+primary_key: [learning_period_id]
+from: "bronze.cal_instance ci"
+joins:
+  - "LEFT JOIN xw_calendar_type xct ON xct.source_code = ci.CAL_TYPE"
+# teaching calendars only (those used by unit enrolments); academic-year and load calendars excluded
+where: "EXISTS (SELECT 1 FROM bronze.student_unit_attempt s WHERE s.CAL_TYPE = ci.CAL_TYPE AND s.CI_SEQUENCE_NUMBER = ci.SEQUENCE_NUMBER)"
+columns:
+  learning_period_id:   {expr: "concat(ci.CAL_TYPE, '|', CAST(ci.SEQUENCE_NUMBER AS STRING))", mcds: learningPeriodID, source: "CAL_INSTANCE.CAL_TYPE + SEQUENCE_NUMBER"}
+  calendar_type:        {expr: "ci.CAL_TYPE", mcds: code, source: "CAL_INSTANCE.CAL_TYPE"}
+  learning_period_name: {expr: "concat(ci.CAL_TYPE, ' ', CAST(year(ci.START_DT) AS STRING))", mcds: learningPeriodName, source: "CAL_INSTANCE.CAL_TYPE + year(START_DT)"}
+  alternate_code:       {expr: "ci.ALTERNATE_CODE", mcds: x-additional.alternateCode, source: "CAL_INSTANCE.ALTERNATE_CODE"}
+  learning_period_type: {expr: "xct.learning_period_type", mcds: learningPeriodType.learningPeriodTypeName, source: "CAL_INSTANCE.CAL_TYPE via xw_calendar_type"}
+  cohort:               {expr: "COALESCE(xct.cohort, 'UNMAPPED')", mcds: x-additional.cohort, source: "CAL_INSTANCE.CAL_TYPE via xw_calendar_type"}
+  # Academic year approximated from teaching-period start (UC view uses CAL_INSTANCE_RELATIONSHIP -> ACAD-YR, not extracted)
+  academic_year:        {expr: "year(ci.START_DT)", mcds: year, mcds_cast: string, source: "year(CAL_INSTANCE.START_DT) (approximates ACAD-YR link)"}
+  start_date:           {expr: "ci.START_DT", mcds: startDate, source: "CAL_INSTANCE.START_DT"}
+  end_date:             {expr: "ci.END_DT", mcds: endDate, source: "CAL_INSTANCE.END_DT"}

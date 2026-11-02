@@ -1,0 +1,25 @@
+# MCDS unitOfLearning (curriculum.schema.json#/$defs/unitOfLearning) - design-time unit version.
+entity: unit_of_learning
+description: "MCDS unitOfLearning - one row per Callista UNIT_VERSION, with owning faculty"
+mcds: {schema: curriculum.schema.json, definition: unitOfLearning, unique_ids_field: unitOfLearningUniqueIDs}
+primary_key: [unit_of_learning_id]
+from: "bronze.unit_version uv"
+joins:
+  - "LEFT JOIN silver.organisation own ON own.organisation_code = uv.OWNER_ORG_UNIT_CD AND own.start_date = uv.OWNER_OU_START_DT"
+columns:
+  unit_of_learning_id:    {expr: "concat(uv.UNIT_CD, '.', CAST(uv.VERSION_NUMBER AS STRING))", mcds: unitOfLearningID, source: "UNIT_VERSION.UNIT_CD + VERSION_NUMBER"}
+  unit_code:              {expr: "uv.UNIT_CD", mcds: unitOfLearningCode, source: "UNIT_VERSION.UNIT_CD"}
+  unit_version:           {expr: "CAST(uv.VERSION_NUMBER AS STRING)", mcds: version, source: "UNIT_VERSION.VERSION_NUMBER"}
+  unit_name:              {expr: "uv.TITLE", mcds: unitOfLearningName, source: "UNIT_VERSION.TITLE"}
+  unit_level:             {expr: "uv.UNIT_LEVEL", mcds: x-additional.unitLevel, source: "UNIT_VERSION.UNIT_LEVEL"}
+  credit_points:          {expr: "uv.ENROLLED_CREDIT_POINTS", mcds: x-additional.enrolledCreditPoints, source: "UNIT_VERSION.ENROLLED_CREDIT_POINTS"}
+  # Unit EFTSL value (design-time): credit points / standard annual load (MCDS unitOfLearning.studentLoad)
+  student_load:           {expr: "CAST(uv.ENROLLED_CREDIT_POINTS / ${rules.load.standard_annual_load_cp} AS DOUBLE)", mcds: studentLoad, source: "UNIT_VERSION.ENROLLED_CREDIT_POINTS / rules.load.standard_annual_load_cp"}
+  # Faculty = unit's owning org unit (matches UC dashboard 'Unit Faculty'). CONFIRM WITH UC.
+  owner_organisation_id:  {expr: "own.organisation_id", mcds: x-additional.ownerOrganisationID, source: "UNIT_VERSION.OWNER_ORG_UNIT_CD + OWNER_OU_START_DT"}
+  owner_faculty_code:     {expr: "uv.OWNER_ORG_UNIT_CD", mcds: x-additional.ownerFacultyCode, source: "UNIT_VERSION.OWNER_ORG_UNIT_CD"}
+  owner_faculty_name:     {expr: "own.organisation_name", source: "ORG_UNIT.DESCRIPTION (owner)"}
+  is_vet:                 {expr: "uv.VET_IND = 'Y'", mcds: x-additional.isVet, source: "UNIT_VERSION.VET_IND"}
+  unit_status:            {expr: "uv.UNIT_STATUS", mcds: x-additional.callistaUnitStatus, source: "UNIT_VERSION.UNIT_STATUS"}
+foreign_keys:
+  owner_organisation_id: organisation.organisation_id

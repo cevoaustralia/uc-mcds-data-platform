@@ -1,0 +1,37 @@
+# ---------------------------------------------------------------------------------------------
+# Student load (EFTSL) rules - referenced in SQL as ${rules.load.<key>}
+#
+# UC's reported EFTSL comes from Callista view UC_OWNER.UC_SUA_EFTSU_FULL_V:
+#   EFTSU = TRUNC(NVL(sua.override_eftsu, enrs_clc_sua_eftsut(...)), 3)
+#   joined SUA -> SCA (person + course, SCA status != 'UNCONFIRM') -> ACAD-YR calendar.
+# enrs_clc_sua_eftsut is not available outside Callista, so it is approximated as
+#   enrolled credit points / standard annual load (see evidence below).
+# Every rule here is a documented assumption; 'confirmed: false' items need UC sign-off.
+# ---------------------------------------------------------------------------------------------
+
+standard_annual_load_cp: 24
+standard_annual_load_evidence: >-
+  1,129 of 1,283 units are 3 CP; full-time students carry a median 12 CP in SEM-1 (7,235 of
+  11,526 exactly 12) = 24 CP per year = 1.0 EFTSL; UC dashboard shows 0.124 EFTSL per student
+  for a 3 CP unit (64.63 / 522). Callista holds the value per course in
+  COURSE_VERSION.STD_ANNUAL_LOAD (not extracted).
+standard_annual_load_confirmed: false
+
+# Decimal places kept per enrolment row (UC view truncates to 3)
+eftsu_truncate_decimals: 3
+
+# Course attempt statuses excluded (as UC_SUA_EFTSU_FULL_V)
+excluded_course_attempt_statuses: "'UNCONFIRM'"
+
+# Unit attempt statuses that carry load
+load_unit_attempt_statuses: "'ENROLLED','COMPLETED'"
+
+# Discontinued unit attempts carry load only when withdrawn after census.
+# Inferred from ADMINISTRATIVE_UNIT_STATUS codes and withdrawal timing
+# (WD-EARLY median 2% into the period; WD-LATE-LD 23-75%; WD-FAIL after the period ends).
+discontinued_status: "'DISCONTIN'"
+discontinued_load_admin_statuses: "'WD-LATE-LD','WD-FAIL'"
+census_rule_confirmed: false
+
+# Cohorts in scope for load reporting (decision 1: HE coursework; HDR and ELICOS separate)
+load_cohorts_in_scope: "'HE_COURSEWORK'"

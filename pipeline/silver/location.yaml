@@ -1,0 +1,16 @@
+# MCDS location (locations.schema.json#/$defs/location) - campuses incl. offshore partner delivery sites.
+entity: location
+description: "MCDS location - one row per Callista LOCATION, with onshore/offshore delivery attribute"
+mcds: {schema: locations.schema.json, definition: location, unique_ids_field: locationUniqueIDs}
+primary_key: [location_id]
+from: "bronze.location l"
+joins:
+  - "LEFT JOIN xw_location_type xlt ON xlt.source_code = l.LOCATION_TYPE"
+  - "LEFT JOIN xw_offshore_delivery xod ON xod.source_code = l.GOVT_OFFSHR_DLVRY_CD"
+columns:
+  location_id:        {expr: "l.LOCATION_CD", mcds: locationID, source: "LOCATION.LOCATION_CD"}
+  location_code:      {expr: "l.LOCATION_CD", mcds: code, source: "LOCATION.LOCATION_CD"}
+  location_name:      {expr: "l.DESCRIPTION", mcds: locationName, mcds_wrap: languageMap, source: "LOCATION.DESCRIPTION"}
+  location_type:      {expr: "xlt.mcds_location_type", mcds: locationType, source: "LOCATION.LOCATION_TYPE via xw_location_type"}
+  delivery:           {expr: "COALESCE(xod.delivery, 'ONSHORE')", mcds: x-additional.delivery, source: "LOCATION.GOVT_OFFSHR_DLVRY_CD via xw_offshore_delivery"}
+  is_closed:          {expr: "l.CLOSED_IND = 'Y'", mcds: x-additional.isClosed, source: "LOCATION.CLOSED_IND"}
