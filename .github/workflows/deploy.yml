@@ -43,6 +43,15 @@ jobs:
           echo "ROLE_ARN=$ROLE" >> "$GITHUB_ENV"
           echo "ORG=$(python scripts/env_value.py --env "$ENV_NAME" organization)" >> "$GITHUB_ENV"
           echo "QS=$(python scripts/env_value.py --env "$ENV_NAME" features.quicksight)" >> "$GITHUB_ENV"
+      - name: Debug OIDC token context
+        run: |
+          echo "GitHub OIDC token URL: $ACTIONS_ID_TOKEN_REQUEST_URL"
+          echo "Repository: ${{ github.repository }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Role to assume: ${{ env.ROLE_ARN }}"
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.ROLE_ARN }}
