@@ -47,6 +47,7 @@ jobs:
         with:
           role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-${{ github.run_id }}
       - name: MDAA ${{ inputs.action }}
         run: |
           FILTER=""; [ -n "${{ inputs.modules }}" ] && FILTER="-m ${{ inputs.modules }}"
