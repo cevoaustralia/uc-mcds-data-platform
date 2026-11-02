@@ -14,7 +14,7 @@ environment: dev
 aws:
   account_id: "588738606436"
   region: "ap-southeast-2"
-  deploy_role_arn: "arn:aws:iam::588738606436:role/cevoaustralia-github-oidc-token"   # output RoleArn of bootstrap/github-oidc-deploy-role.yaml
+  deploy_role_arn: "arn:aws:iam::588738606436:role/uc-mcds-github-deploy"   # output RoleArn of bootstrap/github-oidc-deploy-role.yaml
 
 # Globally unique, lowercase, used in every bucket and resource name (e.g. "uc-mcds")
 organization: "cevo-dev25-mcds"
