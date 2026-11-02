@@ -16,7 +16,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    # environment: ${{ inputs.environment }}  # Removed - uses repository variables instead
     env:
       ENV_NAME: ${{ inputs.environment }}
       MDAA_AWS_ACCOUNT_ID: ${{ vars.MDAA_AWS_ACCOUNT_ID }}
