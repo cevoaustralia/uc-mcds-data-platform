@@ -16,7 +16,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # environment: ${{ inputs.environment }}  # Commented out - requires admin access to create GitHub Environment
+    environment: ${{ inputs.environment }}
     env:
       ENV_NAME: ${{ inputs.environment }}
       MDAA_AWS_ACCOUNT_ID: ${{ vars.MDAA_AWS_ACCOUNT_ID }}
