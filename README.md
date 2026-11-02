@@ -102,7 +102,7 @@ Serverless and pay-per-use; nothing runs between pipeline runs except S3 storage
 
 ## Local development (no AWS)
 
-Prerequisites: Python 3.11+, Java 17, Node 20+; `pip install -r requirements-dev.txt`; `npm ci`.
+Prerequisites: Python 3.11+, Java 17, Node 22+; `pip install -r requirements-dev.txt`; `npm ci`.
 
 ```bash
 # 1. MCDS schemas (licensed - never committed): compile the intermediate bundle from the package
